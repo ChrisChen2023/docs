@@ -1,5 +1,5 @@
 ---
-title: "Manage Volume Snapshots on GPU Cloud Storage"
+title: "Manage Volume Snapshots for GPU Cloud Persistent Storage"
 sidebarTitle: "Snapshots"
 description: "Create point-in-time snapshots of your GPU Cloud volumes to back up datasets, preserve experiment states, and restore data when needed."
 ---
@@ -19,7 +19,7 @@ Retrieve all snapshots in your account.
 ### Endpoint
 
 ```
-GET https://api.gpucloud.com/v1/snapshots
+GET https://api.gpucloud.com/v1/storage/snapshots
 ```
 
 ### Request
@@ -59,7 +59,7 @@ This endpoint takes no request body or query parameters.
 ### Example Request
 
 ```bash
-curl https://api.gpucloud.com/v1/snapshots \
+curl https://api.gpucloud.com/v1/storage/snapshots \
   -H "Authorization: Bearer <api-key>"
 ```
 
@@ -88,7 +88,7 @@ Capture a point-in-time snapshot of an existing volume. You can snapshot a volum
 ### Endpoint
 
 ```
-POST https://api.gpucloud.com/v1/snapshots
+POST https://api.gpucloud.com/v1/storage/snapshots
 ```
 
 ### Request Body
@@ -108,7 +108,7 @@ The response is a single snapshot object. See the field descriptions under [List
 ### Example Request
 
 ```bash
-curl -X POST https://api.gpucloud.com/v1/snapshots \
+curl -X POST https://api.gpucloud.com/v1/storage/snapshots \
   -H "Authorization: Bearer <api-key>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -140,7 +140,7 @@ Permanently remove a snapshot you no longer need. This action is irreversible â€
 ### Endpoint
 
 ```
-DELETE https://api.gpucloud.com/v1/snapshots/{id}
+DELETE https://api.gpucloud.com/v1/storage/snapshots/{id}
 ```
 
 Provide the snapshot's unique ID as a path parameter. A successful deletion returns `204 No Content` with an empty response body.
@@ -148,7 +148,7 @@ Provide the snapshot's unique ID as a path parameter. A successful deletion retu
 ### Example Request
 
 ```bash
-curl -X DELETE https://api.gpucloud.com/v1/snapshots/snap_ghi012 \
+curl -X DELETE https://api.gpucloud.com/v1/storage/snapshots/snap_ghi012 \
   -H "Authorization: Bearer <api-key>"
 ```
 

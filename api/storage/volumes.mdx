@@ -1,5 +1,5 @@
 ---
-title: "Manage Persistent Storage Volumes on GPU Cloud"
+title: "Create and List Persistent Storage Volumes on GPU Cloud"
 sidebarTitle: "Volumes"
 description: "Create, list, attach, and detach persistent storage volumes to move data between GPU Cloud instances without losing it between sessions."
 ---
@@ -15,7 +15,7 @@ Retrieve all volumes in your account, regardless of whether they are currently a
 ### Endpoint
 
 ```
-GET https://api.gpucloud.com/v1/volumes
+GET https://api.gpucloud.com/v1/storage/volumes
 ```
 
 ### Request
@@ -55,7 +55,7 @@ This endpoint takes no request body or query parameters.
 ### Example Request
 
 ```bash
-curl https://api.gpucloud.com/v1/volumes \
+curl https://api.gpucloud.com/v1/storage/volumes \
   -H "Authorization: Bearer <api-key>"
 ```
 
@@ -84,7 +84,7 @@ Provision a new persistent volume in a specified region. The volume will be avai
 ### Endpoint
 
 ```
-POST https://api.gpucloud.com/v1/volumes
+POST https://api.gpucloud.com/v1/storage/volumes
 ```
 
 ### Request Body
@@ -108,7 +108,7 @@ The response is a single volume object. See the field descriptions under [List V
 ### Example Request
 
 ```bash
-curl -X POST https://api.gpucloud.com/v1/volumes \
+curl -X POST https://api.gpucloud.com/v1/storage/volumes \
   -H "Authorization: Bearer <api-key>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -136,19 +136,54 @@ curl -X POST https://api.gpucloud.com/v1/volumes \
 
 ## Attach a Volume
 
-Mount a volume onto a running instance. The volume must be in `available` status and located in the same region as the instance.
+Mount a volume onto a running instance. The volume must be in `available` status and located in the same region as the target instance. Once attached, the volume appears as a block device on the instance and can be mounted at any path you choose.
 
 ### Endpoint
 
 ```
-POST https://api.gpucloud.com/v1/volumes/{id}/attach
+POST https://api.gpucloud.com/v1/storage/volumes/{id}/attach
 ```
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the volume to attach (e.g., `vol_def456`).
+</ParamField>
 
 ### Request Body
 
+<ParamField body="instance_id" type="string" required>
+  The ID of the running instance to attach the volume to (e.g., `inst_abc123`). The instance must be in `running` status and in the same region as the volume.
+</ParamField>
+
+### Response
+
+A successful request returns `200 OK` with the updated volume object. The `status` field will transition from `available` to `attaching` and then to `attached`. The `attached_to` field will reflect the target instance ID.
+
+If the volume is not in `available` status, the API returns `409 Conflict`. If the volume and instance are in different regions, the API returns `422 Unprocessable Entity`.
+
+### Example Request
+
+```bash
+curl -X POST https://api.gpucloud.com/v1/storage/volumes/vol_def456/attach \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instance_id": "inst_abc123"
+  }'
+```
+
+### Example Response
+
 ```json
 {
-  "instance_id": "inst_abc123"
+  "id": "vol_def456",
+  "name": "training-data",
+  "size_gb": 500,
+  "region": "us-east-1",
+  "status": "attached",
+  "attached_to": "inst_abc123",
+  "created_at": "2024-01-12T09:00:00Z"
 }
 ```
 
@@ -156,12 +191,47 @@ POST https://api.gpucloud.com/v1/volumes/{id}/attach
 
 ## Detach a Volume
 
-Unmount a volume from its current instance, returning it to `available` status so it can be attached elsewhere.
+Unmount a volume from its current instance, returning it to `available` status so it can be attached to a different instance or safely deleted.
 
 ### Endpoint
 
 ```
-POST https://api.gpucloud.com/v1/volumes/{id}/detach
+POST https://api.gpucloud.com/v1/storage/volumes/{id}/detach
 ```
 
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the volume to detach (e.g., `vol_def456`).
+</ParamField>
+
+### Request
+
 This endpoint takes no request body. The volume ID in the path identifies which volume to detach.
+
+### Response
+
+A successful request returns `200 OK` with the updated volume object. The `status` field transitions from `attached` to `detaching` and then back to `available`. The `attached_to` field becomes `null` once detachment completes.
+
+If the volume is not currently attached, the API returns `409 Conflict`.
+
+### Example Request
+
+```bash
+curl -X POST https://api.gpucloud.com/v1/storage/volumes/vol_def456/detach \
+  -H "Authorization: Bearer <api-key>"
+```
+
+### Example Response
+
+```json
+{
+  "id": "vol_def456",
+  "name": "training-data",
+  "size_gb": 500,
+  "region": "us-east-1",
+  "status": "available",
+  "attached_to": null,
+  "created_at": "2024-01-12T09:00:00Z"
+}
+```

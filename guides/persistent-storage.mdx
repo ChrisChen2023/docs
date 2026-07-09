@@ -1,7 +1,7 @@
 ---
-title: "Attach and Manage Persistent Storage Volumes"
+title: "Create and Manage Persistent Storage Volumes on GPU Cloud"
 sidebarTitle: "Persistent Storage"
-description: "Create persistent NVMe volumes on GPU Cloud, attach them to instances, format and mount them, and reattach them to new instances to keep your data safe."
+description: "Create NVMe volumes on GPU Cloud, attach them to instances, format and mount them, and reattach to new instances to keep your data safe across sessions."
 ---
 
 By default, a GPU Cloud instance's root disk is ephemeral — it exists for the lifetime of that instance. Persistent volumes are separate block storage devices that live independently of any instance. You can attach a volume to an instance, fill it with datasets and model checkpoints, detach it, and reattach it to a completely different instance without losing a single byte. This makes persistent volumes the right place to store anything that needs to outlive a single compute session.

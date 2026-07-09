@@ -1,7 +1,7 @@
 ---
-title: "Add a New SSH Key to Your GPU Cloud Account"
+title: "Add an SSH Key to Your GPU Cloud Account via the API"
 sidebarTitle: "Add SSH Key"
-description: "Register a new SSH public key with your GPU Cloud account so you can use it to authenticate into instances at launch time."
+description: "Register a new SSH public key with your GPU Cloud account to enable SSH access when launching instances. Supports RSA and Ed25519 key types."
 ---
 
 Before you can connect to a GPU Cloud instance over SSH, you need to register at least one public key with your account. This endpoint accepts your key's full public key content along with a friendly name — so you can distinguish between keys from different machines or team members. Once added, the key becomes available to attach to any new instance you launch.

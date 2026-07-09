@@ -1,5 +1,5 @@
 ---
-title: "Delete an SSH Key from Your GPU Cloud Account"
+title: "Delete a Registered SSH Key from Your GPU Cloud Account"
 sidebarTitle: "Delete SSH Key"
 description: "Permanently remove a registered SSH key from your GPU Cloud account to prevent it from being selected when launching new instances."
 ---
@@ -25,6 +25,8 @@ DELETE https://api.gpucloud.com/v1/ssh-keys/{id}
 ## Response
 
 A successful deletion returns `204 No Content` with an empty response body.
+
+If the key ID does not exist or does not belong to your account, the API returns `404 Not Found`. Verify the key ID using the [List SSH Keys](/api/ssh-keys/list) endpoint and ensure you are authenticating with the correct API key.
 
 ## Example Request
 
