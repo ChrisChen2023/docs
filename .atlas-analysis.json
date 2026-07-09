@@ -1,13 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "GPU Cloud",
+  "projectType": "saas",
+  "projectName": "GPU Cloud",
+  "projectDescription": "A GPU cloud platform that lets developers and teams instantly provision, manage, and scale GPU-accelerated compute instances for AI, ML, and HPC workloads.",
   "theme": "aspen",
-  "colors": {
-    "primary": "#ef7025",
-    "light": "#eec9bc",
-    "dark": "#4fa1ab"
-  },
-  "favicon": "/favicon.svg",
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
   "navigation": {
     "tabs": [
       {
@@ -95,11 +93,27 @@
       }
     ]
   },
-  "navbar": {
-    "primary": {
-      "type": "button",
-      "label": "Console",
-      "href": "https://console.gpucloud.com"
-    }
-  }
+  "keyFeatures": [
+    "On-demand GPU instance provisioning (A100, H100, RTX 4090, and more)",
+    "Persistent cloud storage with NVMe and network-attached volumes",
+    "SSH and web-based terminal access",
+    "Pre-built disk images for PyTorch, TensorFlow, and CUDA",
+    "REST API and CLI for programmatic instance management",
+    "Pay-as-you-go and reserved instance pricing",
+    "Team workspaces with role-based access control",
+    "Jupyter Notebook and VS Code integration"
+  ],
+  "publicApiSurface": [
+    "GET /instances — list all instances",
+    "POST /instances — create a new GPU instance",
+    "GET /instances/{id} — get instance details",
+    "DELETE /instances/{id} — terminate an instance",
+    "GET /ssh-keys — list SSH keys",
+    "POST /ssh-keys — add an SSH key",
+    "DELETE /ssh-keys/{id} — delete an SSH key",
+    "GET /storage/volumes — list persistent volumes",
+    "POST /storage/volumes — create a volume",
+    "GET /storage/snapshots — list snapshots",
+    "POST /storage/snapshots — create a snapshot"
+  ]
 }

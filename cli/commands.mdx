@@ -1,0 +1,382 @@
+---
+title: "GPU Cloud CLI Command Reference"
+sidebarTitle: "Commands"
+description: "Complete reference for all gpucloud CLI commands, arguments, and flags for managing instances, volumes, and SSH keys."
+---
+
+The `gpucloud` CLI is organized into command groups, each targeting a specific resource type. This page covers every command available, including required arguments, optional flags, and realistic example output. Run `gpucloud <command> --help` at any time to print inline documentation for any subcommand.
+
+<Note>
+  All commands require authentication. Run `gpucloud auth login` or set the `GPUCLOUD_API_KEY` environment variable before proceeding. See the [CLI Overview](/cli/overview) for setup instructions.
+</Note>
+
+---
+
+<AccordionGroup>
+
+  <Accordion title="instance — Manage GPU Instances" icon="server">
+
+    The `instance` group lets you create, inspect, connect to, and terminate GPU compute instances.
+
+    ### Command Summary
+
+    | Command | Arguments | Flags | Description |
+    |---|---|---|---|
+    | `instance list` | — | `--status`, `--region` | List all instances in your account |
+    | `instance create` | — | `--gpu`, `--region`, `--image`, `--disk`, `--name`, `--ssh-key` | Provision a new GPU instance |
+    | `instance get` | `<id>` | — | Fetch full details for a single instance |
+    | `instance terminate` | `<id>` | `--force` | Permanently terminate an instance |
+    | `instance ssh` | `<id>` | `--user`, `--key` | Open an interactive SSH session |
+
+    ---
+
+    ### `instance list`
+
+    List all instances in your account, with their current status, GPU type, and region.
+
+    ```bash
+    gpucloud instance list
+    ```
+
+    ```
+    ID              NAME            GPU       REGION       STATUS     IP
+    i-a1b2c3d4      training-run    H100      us-east-1    running    203.0.113.42
+    i-e5f6g7h8      dev-workspace   RTX4090   us-west-2    stopped    —
+    i-i9j0k1l2      inference-api   A100      eu-west-2    running    203.0.113.87
+    ```
+
+    Filter by status or region:
+
+    ```bash
+    gpucloud instance list --status running --region us-east-1
+    ```
+
+    ---
+
+    ### `instance create`
+
+    Provision a new GPU instance. The CLI prints the new instance ID and polls until the instance reaches `running` status.
+
+    ```bash
+    gpucloud instance create \
+      --gpu h100 \
+      --region us-east-1 \
+      --image pytorch-2.1 \
+      --disk 100 \
+      --name training-run \
+      --ssh-key mykey
+    ```
+
+    ```
+    ✓ Instance i-a1b2c3d4 created
+    ⠸ Waiting for instance to start...
+    ✓ Instance running at 203.0.113.42
+    ```
+
+    **Flags:**
+
+    | Flag | Required | Description |
+    |---|---|---|
+    | `--gpu` | Yes | GPU type: `h100`, `a100`, `rtx4090`, etc. |
+    | `--region` | Yes | Region to deploy into, e.g. `us-east-1` |
+    | `--image` | Yes | Disk image name, e.g. `pytorch-2.1`, `tensorflow-2.14`, `cuda-12.2` |
+    | `--disk` | No | Root disk size in GB (default: `50`) |
+    | `--name` | No | Human-readable label for the instance |
+    | `--ssh-key` | No | Name of a stored SSH key to authorize |
+
+    <Tip>
+      Run `gpucloud instance create --help` to see all available GPU types and disk images for your selected region.
+    </Tip>
+
+    ---
+
+    ### `instance get`
+
+    Retrieve full metadata for a single instance by its ID.
+
+    ```bash
+    gpucloud instance get i-a1b2c3d4
+    ```
+
+    ```
+    ID:          i-a1b2c3d4
+    Name:        training-run
+    GPU:         H100 (80GB)
+    vCPUs:       16
+    RAM:         120 GB
+    Disk:        100 GB NVMe
+    Region:      us-east-1
+    Image:       pytorch-2.1
+    Status:      running
+    IP:          203.0.113.42
+    Created:     2024-11-01T09:32:00Z
+    Uptime:      3h 14m
+    ```
+
+    ---
+
+    ### `instance terminate`
+
+    Permanently destroy an instance and release all associated resources. This action is irreversible.
+
+    ```bash
+    gpucloud instance terminate i-a1b2c3d4
+    ```
+
+    ```
+    ⚠ This will permanently terminate instance i-a1b2c3d4 (training-run). Continue? [y/N]: y
+    ✓ Instance i-a1b2c3d4 terminated
+    ```
+
+    Skip the confirmation prompt in scripts with `--force`:
+
+    ```bash
+    gpucloud instance terminate i-a1b2c3d4 --force
+    ```
+
+    <Warning>
+      Terminating an instance permanently deletes its root disk. Any data not saved to a persistent volume will be lost. Attach a volume before terminating if you need to preserve your work.
+    </Warning>
+
+    ---
+
+    ### `instance ssh`
+
+    Open an interactive SSH session to a running instance. The CLI resolves the instance IP and key automatically.
+
+    ```bash
+    gpucloud instance ssh i-a1b2c3d4
+    ```
+
+    ```
+    Connecting to 203.0.113.42 as ubuntu...
+    Welcome to GPU Cloud — H100 instance
+    ubuntu@i-a1b2c3d4:~$
+    ```
+
+    Override the login user or specify a local key file:
+
+    ```bash
+    gpucloud instance ssh i-a1b2c3d4 --user root --key ~/.ssh/custom_key
+    ```
+
+  </Accordion>
+
+  <Accordion title="ssh-key — Manage SSH Keys" icon="key">
+
+    The `ssh-key` group manages the public keys that GPU Cloud injects into new instances at creation time.
+
+    ### Command Summary
+
+    | Command | Arguments | Flags | Description |
+    |---|---|---|---|
+    | `ssh-key list` | — | — | List all stored SSH keys |
+    | `ssh-key add` | — | `--name`, `--public-key-file` | Upload a new public key |
+    | `ssh-key delete` | `<id>` | `--force` | Remove a stored SSH key |
+
+    ---
+
+    ### `ssh-key list`
+
+    Display all public keys saved to your account.
+
+    ```bash
+    gpucloud ssh-key list
+    ```
+
+    ```
+    ID          NAME           FINGERPRINT                                      CREATED
+    key-001     mykey          SHA256:abc123def456...                            2024-10-15
+    key-002     laptop-key     SHA256:xyz789uvw012...                            2024-10-28
+    ```
+
+    ---
+
+    ### `ssh-key add`
+
+    Upload a public key from a local file. The key will be available to attach to new instances.
+
+    ```bash
+    gpucloud ssh-key add \
+      --name mykey \
+      --public-key-file ~/.ssh/id_rsa.pub
+    ```
+
+    ```
+    ✓ SSH key 'mykey' added (ID: key-001)
+    ```
+
+    You can also paste the key inline:
+
+    ```bash
+    gpucloud ssh-key add --name ci-key --public-key "ssh-ed25519 AAAAC3Nza..."
+    ```
+
+    ---
+
+    ### `ssh-key delete`
+
+    Remove a public key from your account by its ID. This does not affect running instances that already have the key installed.
+
+    ```bash
+    gpucloud ssh-key delete key-001
+    ```
+
+    ```
+    ✓ SSH key key-001 deleted
+    ```
+
+  </Accordion>
+
+  <Accordion title="volume — Manage Persistent Volumes" icon="database">
+
+    The `volume` group manages persistent storage volumes that survive instance termination and can be moved between instances.
+
+    ### Command Summary
+
+    | Command | Arguments | Flags | Description |
+    |---|---|---|---|
+    | `volume list` | — | `--region` | List all volumes in your account |
+    | `volume create` | — | `--name`, `--size`, `--region` | Create a new persistent volume |
+    | `volume attach` | `<volume-id> <instance-id>` | `--mount-path` | Attach a volume to a running instance |
+    | `volume detach` | `<volume-id>` | `--force` | Detach a volume from its instance |
+
+    ---
+
+    ### `volume list`
+
+    List all persistent volumes and their attachment status.
+
+    ```bash
+    gpucloud volume list
+    ```
+
+    ```
+    ID          NAME        SIZE    REGION       STATUS      ATTACHED TO
+    vol-001     mydata      100GB   us-east-1    attached    i-a1b2c3d4
+    vol-002     checkpts    500GB   us-east-1    available   —
+    vol-003     datasets    1TB     eu-west-2    available   —
+    ```
+
+    ---
+
+    ### `volume create`
+
+    Provision a new NVMe-backed persistent volume in the specified region.
+
+    ```bash
+    gpucloud volume create \
+      --name mydata \
+      --size 100 \
+      --region us-east-1
+    ```
+
+    ```
+    ✓ Volume vol-001 (mydata, 100GB) created in us-east-1
+    ```
+
+    **Flags:**
+
+    | Flag | Required | Description |
+    |---|---|---|
+    | `--name` | Yes | Human-readable label for the volume |
+    | `--size` | Yes | Size in GB |
+    | `--region` | Yes | Region where the volume will be created |
+
+    <Note>
+      Volumes can only be attached to instances in the same region. Create your volume in the same region as your target instance.
+    </Note>
+
+    ---
+
+    ### `volume attach`
+
+    Attach an available volume to a running instance. The volume appears as a block device inside the instance.
+
+    ```bash
+    gpucloud volume attach vol-001 i-a1b2c3d4
+    ```
+
+    ```
+    ✓ Volume vol-001 attached to i-a1b2c3d4 at /dev/vdb
+    Mount with: sudo mount /dev/vdb /mnt/data
+    ```
+
+    Specify a custom mount path:
+
+    ```bash
+    gpucloud volume attach vol-001 i-a1b2c3d4 --mount-path /mnt/mydata
+    ```
+
+    ---
+
+    ### `volume detach`
+
+    Safely detach a volume from its current instance. Ensure you've unmounted the filesystem inside the instance first.
+
+    ```bash
+    gpucloud volume detach vol-001
+    ```
+
+    ```
+    ✓ Volume vol-001 detached and available
+    ```
+
+    <Warning>
+      Always unmount the volume inside your instance (`sudo umount /mnt/data`) before running `volume detach`. Detaching a mounted volume without unmounting first can cause data corruption.
+    </Warning>
+
+  </Accordion>
+
+  <Accordion title="config — Manage CLI Configuration" icon="gear">
+
+    The `config` group stores persistent CLI preferences so you don't have to repeat common flags on every command.
+
+    ### Command Summary
+
+    | Command | Arguments | Description |
+    |---|---|---|
+    | `config set` | `<key> <value>` | Set a configuration value |
+    | `config get` | `<key>` | Read a configuration value |
+    | `config list` | — | Display all current configuration |
+
+    ---
+
+    ### `config set` / `config get`
+
+    Set your default region and output format once and the CLI will use them automatically:
+
+    ```bash
+    gpucloud config set region us-east-1
+    gpucloud config set output json
+    ```
+
+    Read a specific value:
+
+    ```bash
+    gpucloud config get region
+    ```
+
+    ```
+    us-east-1
+    ```
+
+    ---
+
+    ### `config list`
+
+    Display the full current configuration:
+
+    ```bash
+    gpucloud config list
+    ```
+
+    ```
+    region:    us-east-1
+    output:    table
+    api_url:   https://api.gpucloud.com/v1
+    ```
+
+  </Accordion>
+
+</AccordionGroup>

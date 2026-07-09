@@ -1,0 +1,185 @@
+---
+title: "Understanding GPU Cloud Billing and Costs"
+sidebarTitle: "Billing & Costs"
+description: "Learn how GPU Cloud per-second billing works, how storage and egress are charged, how to monitor spend and set alerts, and how to read your monthly invoice."
+---
+
+GPU Cloud uses transparent, pay-as-you-go billing with no upfront commitments and no hidden fees. Compute is billed per second from the moment an instance enters the **Running** state until you stop or terminate it, so you only pay for what you actually use. This guide explains every line item you'll see on your invoice, shows you how to estimate costs before you launch, and walks you through the console tools for monitoring spend and avoiding bill surprises.
+
+## How Billing Works
+
+### Compute — Per-Second Billing
+
+Instance compute charges accrue per second based on the GPU type and the number of GPUs in your instance. The billing clock starts when the instance status changes to **Running** and stops the moment you **Stop** or **Terminate** it.
+
+<Note>
+  **Stopped vs. Terminated:** A *stopped* instance suspends compute billing but retains its root disk (you continue to pay for the storage). A *terminated* instance permanently deletes the root disk and stops all charges. Persistent volumes you attached are **not** deleted when you terminate an instance — they remain available and continue to accrue storage charges until you explicitly delete them.
+</Note>
+
+### Storage — Per GB / Month
+
+Storage is billed based on the provisioned size of your volumes, not the amount of data written to them. Billing is pro-rated to the second.
+
+| Storage Type | Price |
+|---|---|
+| Root disk (NVMe SSD) | Per GB/month, pro-rated |
+| Persistent NVMe volume | Per GB/month, pro-rated |
+| Persistent network-attached volume | Per GB/month, pro-rated (lower rate) |
+| Disk image snapshots | Per GB/month (compressed size) |
+
+### Network Egress
+
+- **Inbound (ingress):** Always free
+- **Outbound within the same region:** Free (e.g., instance ↔ volume in the same region)
+- **Outbound to the internet:** Billed per GB above the free monthly allowance included with each account tier
+
+<Tip>
+  Keep your storage volumes in the same region as your instances to avoid inter-region transfer charges and to get the lowest latency.
+</Tip>
+
+---
+
+## Cost Estimation Example
+
+Suppose you run an A100 80 GB instance for a 72-hour training job, with a 1 TB NVMe persistent volume attached.
+
+| Line Item | Calculation | Cost |
+|---|---|---|
+| A100 80GB compute | 72 hours × $2.21/hr | $159.12 |
+| Root disk (100 GB NVMe) | 100 GB × 3 days/30 days × $0.12/GB-mo | $1.20 |
+| Persistent volume (1 TB NVMe) | 1,000 GB × 3 days/30 days × $0.10/GB-mo | $10.00 |
+| Egress (< free allowance) | — | $0.00 |
+| **Total** | | **$170.32** |
+
+<Note>
+  Prices shown above are illustrative. Actual pricing is listed on the [GPU Cloud Pricing page](https://gpucloud.com/pricing) and shown in real time in the launch wizard. Prices may vary by region.
+</Note>
+
+---
+
+## Reserved Instances
+
+For predictable, long-running workloads, reserved instances offer discounts of up to 60% compared to on-demand rates in exchange for a 1-month or 3-month commitment. Reserved instances are billed monthly, regardless of whether the instance is running. View available reservations and purchase them from the **Billing → Reservations** page in the console.
+
+---
+
+## Viewing Your Current Spend
+
+<Steps>
+  <Step title="Open the Billing Dashboard">
+    In the console sidebar, click **Billing**. The **Overview** tab shows your current billing period's spend broken down by resource category (compute, storage, egress).
+  </Step>
+
+  <Step title="Drill Into Resource-Level Costs">
+    Click **Usage** to see a line-by-line breakdown of every instance, volume, and snapshot with its individual accrued cost. Use the date range picker to view historical periods.
+  </Step>
+
+  <Step title="Download a Cost Report">
+    Click **Export** on the Usage page to download a CSV of your usage data. Each row includes the resource ID, resource name, region, start and end time, quantity, unit price, and total cost.
+  </Step>
+</Steps>
+
+---
+
+## Setting Spend Alerts
+
+Spend alerts send you an email (and optional webhook) when your accrued charges in the current billing period cross a threshold you define.
+
+<Steps>
+  <Step title="Navigate to Spend Alerts">
+    In the console, go to **Billing → Alerts**. Click **Create Alert**.
+  </Step>
+
+  <Step title="Set a Threshold">
+    Enter a dollar amount (e.g., `$500`). You can create multiple alerts at different thresholds — for example, alerts at $250, $500, and $1,000.
+  </Step>
+
+  <Step title="Choose Notification Channels">
+    Select one or more channels:
+    - **Email** — notifies all account owners and billing admins
+    - **Webhook** — sends a JSON POST to a URL you specify (useful for Slack, PagerDuty, etc.)
+  </Step>
+
+  <Step title="Save the Alert">
+    Click **Save**. The alert activates immediately. You'll receive a notification within minutes of the threshold being crossed, not just at the end of the billing period.
+  </Step>
+</Steps>
+
+<Warning>
+  Spend alerts are notifications only — they do **not** automatically stop your instances when the threshold is crossed. If you need hard budget enforcement, use the **Spending Limit** feature under **Billing → Settings**, which pauses new instance launches (but not existing running instances) once the limit is reached.
+</Warning>
+
+---
+
+## Understanding Your Invoice
+
+GPU Cloud generates an invoice at the end of each calendar month. You can view all invoices under **Billing → Invoices**. Each invoice contains:
+
+- **Invoice number and billing period** (e.g., October 1–31, 2024)
+- **Account and payment details**
+- **Line items** grouped by resource type (compute, storage, network)
+- **Credits applied** (promotional credits, referral credits, support credits)
+- **Subtotal, taxes (where applicable), and total due**
+
+Invoices are available as PDFs for accounting and expense purposes.
+
+---
+
+## Payment Methods
+
+GPU Cloud accepts the following payment methods:
+
+<CardGroup cols={2}>
+  <Card title="Credit / Debit Card" icon="credit-card">
+    Visa, Mastercard, and American Express. Cards are charged automatically at the end of each billing period.
+  </Card>
+  <Card title="ACH Bank Transfer" icon="building-columns">
+    Available for US customers. Contact support to set up ACH billing. Payment terms are Net-15.
+  </Card>
+  <Card title="Wire Transfer" icon="arrows-left-right">
+    Available for enterprise customers with invoiced billing. Contact your account manager.
+  </Card>
+  <Card title="GPU Cloud Credits" icon="coins">
+    Promotional credits, referral rewards, and trial credits are applied automatically before charging your payment method.
+  </Card>
+</CardGroup>
+
+To add or update a payment method, go to **Billing → Payment Methods** in the console.
+
+---
+
+## Credits and Promotions
+
+GPU Cloud credits are applied to your account balance before any charges hit your payment method. Credits are non-transferable and expire at the date shown in **Billing → Credits**.
+
+- **Trial credits** — new accounts receive a one-time credit to explore the platform
+- **Referral credits** — earn credits when a referred user spends their first $100
+- **Support credits** — issued by the support team for service disruptions or billing errors
+- **Promotional credits** — applied automatically when you redeem a promotional code under **Billing → Redeem Code**
+
+---
+
+## Frequently Asked Questions
+
+**What happens if my payment fails?**
+GPU Cloud retries the charge after 24 hours and again after 72 hours. If all retries fail, running instances are stopped (not terminated) and you receive an email. Update your payment method under **Billing → Payment Methods** to resume.
+
+**Will I be charged for a stopped instance?**
+Compute billing stops when an instance is stopped. You will continue to be charged for the root disk storage until you terminate the instance.
+
+**Can I get a refund for accidental charges?**
+Contact [support@gpucloud.com](mailto:support@gpucloud.com) within 7 days of the charge. Refund eligibility is evaluated case by case.
+
+**How do I delete a volume I'm no longer using?**
+Navigate to **Storage → Volumes**, select the volume, and click **Delete**. The volume must be in the **Available** (detached) state. Deletion is immediate and permanent.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Launch an Instance" icon="rocket" href="/guides/launch-instance">
+    See real-time cost estimates in the launch wizard before you commit.
+  </Card>
+  <Card title="Persistent Storage" icon="hard-drive" href="/guides/persistent-storage">
+    Manage volumes efficiently to keep storage costs under control.
+  </Card>
+</CardGroup>

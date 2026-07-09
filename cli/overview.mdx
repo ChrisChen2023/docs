@@ -1,0 +1,127 @@
+---
+title: "GPU Cloud CLI Overview & Installation"
+sidebarTitle: "Overview"
+description: "Install and authenticate the gpucloud CLI to manage GPU instances, volumes, and SSH keys from your terminal in seconds."
+---
+
+The GPU Cloud CLI (`gpucloud`) gives you full control over your cloud resources directly from your terminal. You can provision instances, manage persistent volumes, configure SSH keys, and monitor workloads without ever opening the dashboard. Whether you're scripting automated pipelines or just prefer the command line, the CLI is the fastest way to interact with GPU Cloud.
+
+## Installation
+
+The CLI requires Python 3.8 or later. Choose the installation method that best fits your workflow.
+
+<CodeGroup>
+
+```bash pip
+pip install gpucloud-cli
+```
+
+```bash pipx
+pipx install gpucloud-cli
+```
+
+```bash brew
+brew install gpucloud-cli
+```
+
+</CodeGroup>
+
+After installation, verify the CLI is available by checking the version:
+
+```bash
+gpucloud --version
+```
+
+<Tip>
+  Using `pipx` installs the CLI in an isolated environment, preventing dependency conflicts with other Python packages on your system. It's the recommended approach for most developers.
+</Tip>
+
+## Authentication
+
+Before running any commands, you need to authenticate the CLI with your GPU Cloud account. There are two methods: an interactive browser-based login and a non-interactive API key flow for headless or CI/CD environments.
+
+<Tabs>
+  <Tab title="Browser Login">
+    Run the login command to open an authentication page in your default browser. The CLI will wait for you to complete the login and automatically store your credentials locally.
+
+    ```bash
+    gpucloud auth login
+    ```
+
+    Once authenticated, you'll see a confirmation in your terminal:
+
+    ```
+    ✓ Authenticated as user@example.com
+    ✓ Credentials saved to ~/.config/gpucloud/credentials
+    ```
+
+    <Note>
+      Browser login is the recommended method for interactive use. Your session token is stored securely in your local config directory and refreshes automatically.
+    </Note>
+  </Tab>
+  <Tab title="API Key">
+    Generate an API key from the [GPU Cloud dashboard](https://console.gpucloud.com/settings/api-keys) and pass it directly to the CLI. This method is ideal for automated scripts, Docker containers, and CI/CD pipelines.
+
+    ```bash
+    gpucloud auth set-key <API_KEY>
+    ```
+
+    You can also supply the key as an environment variable to avoid storing it on disk:
+
+    ```bash
+    export GPUCLOUD_API_KEY=your_api_key_here
+    gpucloud instance list
+    ```
+
+    <Warning>
+      Never commit your API key to source control. Use environment variables or a secrets manager in CI/CD pipelines to keep your credentials secure.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Global Flags
+
+Every `gpucloud` command supports a set of global flags that control output format, target region, and general behavior. These flags must be placed immediately after `gpucloud`, before the subcommand.
+
+| Flag | Values | Description |
+|---|---|---|
+| `--output` | `json`, `table`, `yaml` | Set the output format. Defaults to `table` for human-readable output. |
+| `--region` | e.g. `us-east-1`, `eu-west-2` | Override the default region for the command. |
+| `--help` | — | Print help text for any command or subcommand. |
+| `--quiet` | — | Suppress informational output; useful in scripts. |
+| `--no-color` | — | Disable colored output for logging pipelines. |
+
+### Output formatting
+
+Use `--output json` to get machine-readable output for scripting or piping into tools like `jq`:
+
+```bash
+gpucloud --output json instance list | jq '.[].id'
+```
+
+### Scoping to a region
+
+Set a default region once using the config command so you don't have to pass `--region` on every call:
+
+```bash
+gpucloud config set region us-east-1
+```
+
+Override it per-command when needed:
+
+```bash
+gpucloud --region eu-west-2 instance list
+```
+
+## Next Steps
+
+With the CLI installed and authenticated, explore the full command reference to start managing your GPU resources.
+
+<CardGroup cols={2}>
+  <Card title="CLI Commands" icon="terminal" href="/cli/commands">
+    Browse the complete reference for every `gpucloud` command, flag, and argument.
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/troubleshooting">
+    Resolve common CLI and instance issues quickly.
+  </Card>
+</CardGroup>

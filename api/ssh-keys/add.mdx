@@ -1,0 +1,64 @@
+---
+title: "Add a New SSH Key to Your GPU Cloud Account"
+sidebarTitle: "Add SSH Key"
+description: "Register a new SSH public key with your GPU Cloud account so you can use it to authenticate into instances at launch time."
+---
+
+Before you can connect to a GPU Cloud instance over SSH, you need to register at least one public key with your account. This endpoint accepts your key's full public key content along with a friendly name — so you can distinguish between keys from different machines or team members. Once added, the key becomes available to attach to any new instance you launch.
+
+## Endpoint
+
+```
+POST https://api.gpucloud.com/v1/ssh-keys
+```
+
+## Request Body
+
+<ParamField body="name" type="string" required>
+  A descriptive label for this key (e.g., `"my-macbook"` or `"ci-pipeline"`). This name appears in the dashboard and API responses to help you identify the key.
+</ParamField>
+
+<ParamField body="public_key" type="string" required>
+  The full contents of your SSH public key, exactly as it appears in your `.pub` file (e.g., `"ssh-ed25519 AAAAC3Nza... user@host"`). Both RSA and Ed25519 key types are supported.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="id" type="string">
+  The unique identifier assigned to the newly registered SSH key.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The label you provided for this key.
+</ResponseField>
+
+<ResponseField name="fingerprint" type="string">
+  The SHA-256 fingerprint derived from your public key. Use this to verify the correct key was uploaded.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp for when the key was registered with your account.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.gpucloud.com/v1/ssh-keys \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-macbook",
+    "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... user@my-macbook"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "id": "key_xyz789",
+  "name": "my-macbook",
+  "fingerprint": "SHA256:abc123...",
+  "created_at": "2024-01-10T08:00:00Z"
+}
+```

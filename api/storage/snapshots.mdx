@@ -1,0 +1,159 @@
+---
+title: "Manage Volume Snapshots on GPU Cloud Storage"
+sidebarTitle: "Snapshots"
+description: "Create point-in-time snapshots of your GPU Cloud volumes to back up datasets, preserve experiment states, and restore data when needed."
+---
+
+Snapshots capture the exact contents of a volume at a specific point in time, giving you a reliable way to back up your work before running destructive operations, preserve a clean baseline before a training run, or duplicate data across volumes. A snapshot is stored independently of the source volume, so it persists even if the original volume is later deleted. When you need the data back, you can restore it to a new volume.
+
+<Note>
+  Snapshot creation runs asynchronously. Depending on the size of the source volume, the process may take several minutes to complete. Poll the snapshot's `status` field until it reads `available` before attempting to use the snapshot.
+</Note>
+
+---
+
+## List Snapshots
+
+Retrieve all snapshots in your account.
+
+### Endpoint
+
+```
+GET https://api.gpucloud.com/v1/snapshots
+```
+
+### Request
+
+This endpoint takes no request body or query parameters.
+
+### Response Fields
+
+<ResponseField name="id" type="string">
+  The unique identifier for the snapshot (e.g., `snap_ghi012`).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The human-readable name assigned to the snapshot at creation time.
+</ResponseField>
+
+<ResponseField name="volume_id" type="string">
+  The ID of the volume from which this snapshot was taken.
+</ResponseField>
+
+<ResponseField name="size_gb" type="integer">
+  The size of the snapshot in gigabytes, matching the source volume's capacity.
+</ResponseField>
+
+<ResponseField name="region" type="string">
+  The region where the snapshot is stored, inherited from the source volume.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current state of the snapshot. Possible values: `creating` (snapshot is still being captured), `available` (ready to use).
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp for when the snapshot was initiated.
+</ResponseField>
+
+### Example Request
+
+```bash
+curl https://api.gpucloud.com/v1/snapshots \
+  -H "Authorization: Bearer <api-key>"
+```
+
+### Example Response
+
+```json
+[
+  {
+    "id": "snap_ghi012",
+    "name": "pre-training-snapshot",
+    "volume_id": "vol_def456",
+    "size_gb": 500,
+    "region": "us-east-1",
+    "status": "available",
+    "created_at": "2024-01-14T12:00:00Z"
+  }
+]
+```
+
+---
+
+## Create a Snapshot
+
+Capture a point-in-time snapshot of an existing volume. You can snapshot a volume whether it is attached to an instance or not.
+
+### Endpoint
+
+```
+POST https://api.gpucloud.com/v1/snapshots
+```
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  A descriptive name for the snapshot (e.g., `"pre-training-snapshot"`). Choose a name that makes it easy to identify what state the data was in at capture time.
+</ParamField>
+
+<ParamField body="volume_id" type="string" required>
+  The ID of the volume you want to snapshot. You can find volume IDs from the [List Volumes](/api/storage/volumes) endpoint.
+</ParamField>
+
+### Response Fields
+
+The response is a single snapshot object. See the field descriptions under [List Snapshots](#list-snapshots) above. The `status` field will initially be `creating`; poll the endpoint until it becomes `available`.
+
+### Example Request
+
+```bash
+curl -X POST https://api.gpucloud.com/v1/snapshots \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "pre-training-snapshot",
+    "volume_id": "vol_def456"
+  }'
+```
+
+### Example Response
+
+```json
+{
+  "id": "snap_ghi012",
+  "name": "pre-training-snapshot",
+  "volume_id": "vol_def456",
+  "size_gb": 500,
+  "region": "us-east-1",
+  "status": "creating",
+  "created_at": "2024-01-14T12:00:00Z"
+}
+```
+
+---
+
+## Delete a Snapshot
+
+Permanently remove a snapshot you no longer need. This action is irreversible — the captured data cannot be recovered after deletion.
+
+### Endpoint
+
+```
+DELETE https://api.gpucloud.com/v1/snapshots/{id}
+```
+
+Provide the snapshot's unique ID as a path parameter. A successful deletion returns `204 No Content` with an empty response body.
+
+### Example Request
+
+```bash
+curl -X DELETE https://api.gpucloud.com/v1/snapshots/snap_ghi012 \
+  -H "Authorization: Bearer <api-key>"
+```
+
+### Example Response
+
+```
+HTTP/1.1 204 No Content
+```

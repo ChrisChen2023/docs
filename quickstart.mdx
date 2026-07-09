@@ -1,47 +1,96 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Quickstart: Launch Your First GPU Instance"
+sidebarTitle: "Quickstart"
+description: "Get a GPU instance up and running in under five minutes. Create an account, add an SSH key, launch an instance, and run your first workload."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+This guide walks you through everything you need to go from a brand-new GPU Cloud account to a live, GPU-accelerated instance running your first PyTorch workload — in five minutes or less. You'll create an account, register an SSH key, choose a GPU and disk image, and connect to your instance over SSH. By the end, you'll have a working environment ready for AI, ML, or any GPU-accelerated task.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Create an Account">
+    Navigate to [console.gpucloud.com](https://console.gpucloud.com) and click **Sign Up**. Enter your email address and choose a strong password, then check your inbox for a verification email and click the confirmation link to activate your account.
+
+    Once verified, log in to the GPU Cloud Console to access your dashboard.
+  </Step>
+
+  <Step title="Add an SSH Key">
+    Before launching an instance, register your public SSH key so you can authenticate without a password.
+
+    1. In the Console, open the **SSH Keys** page from the left sidebar.
+    2. Click **Add SSH Key**.
+    3. Paste the contents of your public key file (typically `~/.ssh/id_ed25519.pub` or `~/.ssh/id_rsa.pub`) into the **Public Key** field.
+    4. Give the key a recognizable name, then click **Save**.
+
+    If you don't have an SSH key pair yet, generate one locally first:
 
     ```bash
-    npm install your-package
+    ssh-keygen -t ed25519 -C "your@email.com"
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
 
-    ```bash
-    your-cli init
-    ```
+  <Step title="Launch a GPU Instance">
+    From the Console dashboard, click **New Instance** to open the instance launch wizard.
+
+    1. **GPU Type** — Select a GPU from the available options (for example, `RTX 4090` for cost-efficient inference or `A100 80GB` for large model training).
+    2. **Region** — Choose the geographic region closest to you or your data source.
+    3. **Disk Image** — Pick a pre-built image such as **PyTorch 2.x (CUDA 12)** to get a fully configured environment out of the box.
+    4. **SSH Key** — Select the key you registered in the previous step.
+    5. Click **Launch Instance** to provision your machine.
+
+    Your instance will move from **Provisioning** to **Running** within about 60 seconds.
+
+    <Tip>
+      Choose the **PyTorch** or **TensorFlow** disk image to skip manual CUDA and framework installation — everything is pre-installed and validated.
+    </Tip>
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Connect via SSH">
+    Once your instance status shows **Running**, find its public IP address on the instance detail page and open a terminal on your local machine.
 
     ```bash
-    your-cli start
+    ssh ubuntu@<ip-address>
     ```
+
+    Replace `<ip-address>` with the IP shown in the Console. Accept the host fingerprint prompt on first connection. You are now inside your GPU instance.
+
+    Verify the GPU is visible:
+
+    ```bash
+    nvidia-smi
+    ```
+
+    You should see a table listing your GPU model, driver version, and memory usage.
+  </Step>
+
+  <Step title="Run Your First Workload">
+    With PyTorch pre-installed on your disk image, you can immediately verify GPU access and run a simple tensor operation:
+
+    ```python
+    import torch
+
+    # Confirm GPU availability
+    print("CUDA available:", torch.cuda.is_available())
+    print("GPU:", torch.cuda.get_device_name(0))
+
+    # Run a matrix multiplication on the GPU
+    a = torch.randn(4096, 4096, device="cuda")
+    b = torch.randn(4096, 4096, device="cuda")
+    c = torch.matmul(a, b)
+
+    print("Result shape:", c.shape)
+    print("Device:", c.device)
+    ```
+
+    Save this as `verify_gpu.py` and run it:
+
+    ```bash
+    python verify_gpu.py
+    ```
+
+    You should see `CUDA available: True` along with your GPU name and the output tensor details. Your instance is ready for production workloads.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+<Note>
+  This guide covers the fastest path to a running instance. For a deeper walkthrough — including storage configuration, networking options, custom disk images, and cost management — see the [Launch an Instance](/guides/launch-instance) guide.
+</Note>

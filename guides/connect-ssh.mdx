@@ -1,0 +1,190 @@
+---
+title: "Connect to a GPU Instance via SSH"
+sidebarTitle: "SSH Access"
+description: "Learn how to SSH into your GPU Cloud instance from macOS, Linux, or Windows, configure an SSH config file, and troubleshoot common connection problems."
+---
+
+SSH is the primary way to access your GPU Cloud instances. Once your instance shows a **Running** status in the console, you can connect from any terminal using the SSH key you selected at launch. This guide covers the full connection workflow for macOS, Linux, and Windows, how to simplify repeated logins with an SSH config file, and how to resolve the most common connection errors.
+
+## Prerequisites
+
+Before connecting, confirm the following:
+
+- Your instance status is **Running** in the [GPU Cloud console](https://console.gpucloud.com/instances)
+- You have the **private key** file (`.pem` or `.pub` counterpart) for the SSH key you attached at launch
+- You know your instance's **public IP address** (visible in the Instances list)
+- Port **22** is open in your instance's firewall rules (it is by default for all GPU Cloud instances)
+
+The default username for all GPU Cloud instances is **`ubuntu`**, regardless of which disk image you selected.
+
+## Connect to Your Instance
+
+<Tabs>
+  <Tab title="macOS / Linux">
+    ### Set Key File Permissions
+
+    SSH requires your private key file to be readable only by your user. Run this once after downloading or creating your key:
+
+    ```bash
+    chmod 600 ~/.ssh/your_key
+    ```
+
+    Replace `your_key` with the actual filename of your private key.
+
+    ### Connect
+
+    ```bash
+    ssh -i ~/.ssh/your_key ubuntu@<ip-address>
+    ```
+
+    Replace `<ip-address>` with your instance's public IP shown in the console. On your first connection, SSH will display a host fingerprint prompt — type `yes` to add the host to your `known_hosts` file.
+
+    ### Example
+
+    ```bash
+    ssh -i ~/.ssh/gpucloud-dev ubuntu@203.0.113.42
+    ```
+
+    You'll land directly in the `ubuntu` home directory. If you chose a pre-built image, you'll see a welcome banner listing installed framework versions.
+  </Tab>
+  <Tab title="Windows">
+    <Tabs>
+      <Tab title="PowerShell / Windows Terminal">
+        Windows 10 (1809+) and Windows 11 ship with OpenSSH built in, so you can connect directly from PowerShell or Windows Terminal.
+
+        ### Set Key File Permissions
+
+        Windows SSH requires that only your user account has access to the key file. In PowerShell:
+
+        ```powershell
+        icacls $env:USERPROFILE\.ssh\your_key /inheritance:r /grant:r "$($env:USERNAME):R"
+        ```
+
+        ### Connect
+
+        ```powershell
+        ssh -i $env:USERPROFILE\.ssh\your_key ubuntu@<ip-address>
+        ```
+
+        Replace `your_key` and `<ip-address>` with your actual values.
+      </Tab>
+      <Tab title="PuTTY">
+        PuTTY uses its own `.ppk` key format. If your key is in OpenSSH format (`.pem`), convert it first with **PuTTYgen**.
+
+        ### Convert Your Key with PuTTYgen
+
+        <Steps>
+          <Step title="Open PuTTYgen">
+            Launch **PuTTYgen** (installed alongside PuTTY). Click **Load**, set the file filter to *All Files*, and select your `.pem` private key.
+          </Step>
+          <Step title="Save as .ppk">
+            Click **Save private key**. When prompted about a passphrase, click **Yes** to save without one (or add a passphrase for extra security). Save the `.ppk` file to `C:\Users\YourName\.ssh\`.
+          </Step>
+        </Steps>
+
+        ### Connect with PuTTY
+
+        <Steps>
+          <Step title="Enter Host Details">
+            Open **PuTTY**. In the **Host Name** field, enter `ubuntu@<ip-address>`. Set **Port** to `22` and **Connection type** to `SSH`.
+          </Step>
+          <Step title="Load Your Key">
+            In the left panel, navigate to **Connection → SSH → Auth → Credentials**. Under **Private key file for authentication**, click **Browse** and select your `.ppk` file.
+          </Step>
+          <Step title="Save and Open">
+            Go back to the **Session** page, type a name in **Saved Sessions**, and click **Save** for future reuse. Click **Open** to connect.
+          </Step>
+        </Steps>
+      </Tab>
+    </Tabs>
+  </Tab>
+</Tabs>
+
+## Simplify Logins with an SSH Config File
+
+If you connect to multiple instances, an SSH config file lets you replace long `ssh -i ...` commands with short aliases.
+
+Add a block like this to `~/.ssh/config` (create the file if it doesn't exist):
+
+```text
+Host gpucloud-dev
+    HostName 203.0.113.42
+    User ubuntu
+    IdentityFile ~/.ssh/gpucloud-dev
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+```
+
+Once saved, connect with just:
+
+```bash
+ssh gpucloud-dev
+```
+
+The `ServerAliveInterval` and `ServerAliveCountMax` lines send keepalive packets every 60 seconds, preventing idle SSH sessions from being dropped by network intermediaries during long training runs.
+
+## Use the Web Terminal (No SSH Client Required)
+
+If you can't use SSH — for example, on a locked-down corporate network — GPU Cloud provides a browser-based terminal for every running instance.
+
+1. Open the [console](https://console.gpucloud.com/instances) and click your instance name.
+2. Click the **Terminal** tab in the instance detail view.
+3. A full xterm.js session opens in your browser, logged in as `ubuntu`.
+
+<Note>
+  The web terminal is useful for quick checks and edits, but it does not support file uploads, SSH tunneling, or X11 forwarding. For persistent workflows like Jupyter port forwarding, use a local SSH client.
+</Note>
+
+## Troubleshooting
+
+### `Permission denied (publickey)`
+
+This is the most common SSH error. Work through these checks in order:
+
+1. **Wrong key file** — Confirm you're passing the private key that corresponds to the public key attached to this instance. Check the instance detail in the console under **SSH Keys**.
+2. **Key permissions too open** — Run `chmod 600 ~/.ssh/your_key` on macOS/Linux. On Windows, re-run the `icacls` command above.
+3. **Wrong username** — Always use `ubuntu`, not `root` or your local username.
+4. **Key not injected yet** — Wait a few more seconds after the instance reaches **Running**; key injection occurs during first boot and can take 10–20 seconds after the status updates.
+
+### `Connection timed out` or `Connection refused`
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| Timeout immediately | Firewall blocking port 22 | Check the instance's **Firewall** tab in the console; ensure an inbound rule allows TCP 22 from your IP |
+| Timeout after ~30s | Instance is not yet running | Verify instance status is **Running**, not **Provisioning** or **Stopped** |
+| Connection refused | SSH daemon not started | Use the web terminal to check `sudo systemctl status ssh` |
+
+### `Host key verification failed`
+
+This happens if an instance is terminated and a new one is assigned the same IP address. Clear the old entry:
+
+```bash
+ssh-keygen -R <ip-address>
+```
+
+Then reconnect and accept the new host fingerprint.
+
+### Slow or Dropped Connections
+
+Add keepalive settings to your SSH config (see the config file example above). For very long-running jobs, consider using **tmux** or **screen** inside your session so your work survives a disconnection:
+
+```bash
+tmux new -s training
+```
+
+Reconnect to the session at any time with:
+
+```bash
+tmux attach -t training
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Jupyter Notebooks" icon="book-open" href="/guides/jupyter-notebooks">
+    Forward Jupyter over SSH and work interactively in your browser.
+  </Card>
+  <Card title="Persistent Storage" icon="hard-drive" href="/guides/persistent-storage">
+    Attach a volume that keeps your data across instance restarts.
+  </Card>
+</CardGroup>

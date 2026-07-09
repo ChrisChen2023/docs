@@ -1,0 +1,127 @@
+---
+title: "List All GPU Instances in Your Account"
+sidebarTitle: "List Instances"
+description: "Retrieve a paginated list of all GPU instances in your account, with optional filters for status and region to narrow your results."
+---
+
+The List Instances endpoint returns every GPU instance associated with your account. You can filter results by their current status or by region, and use `limit` and `offset` to page through large sets of instances. This is the primary way to get a bird's-eye view of your running, stopped, or pending infrastructure at any point in time.
+
+## Endpoint
+
+```
+GET https://api.gpucloud.com/v1/instances
+```
+
+## Query Parameters
+
+<ParamField query="status" type="string">
+  Filter instances by their current status. Accepted values are `pending`, `running`, `stopping`, and `terminated`. When omitted, instances in all statuses are returned.
+</ParamField>
+
+<ParamField query="region" type="string">
+  Filter instances by region slug (e.g., `us-east-1`, `eu-west-2`). When omitted, instances across all regions are returned.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="20">
+  The maximum number of instances to return in a single response. Accepted range is `1`–`100`.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  The number of instances to skip before returning results. Use together with `limit` to paginate through your full list.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="instances" type="array">
+  An array of instance objects matching your query. Returns an empty array when no instances match.
+
+  <Expandable title="Instance object">
+    <ResponseField name="id" type="string">
+      The unique identifier for the instance (e.g., `inst_abc123`).
+    </ResponseField>
+
+    <ResponseField name="name" type="string">
+      The human-readable name you assigned to the instance at creation time.
+    </ResponseField>
+
+    <ResponseField name="status" type="string">
+      The current lifecycle status of the instance: `pending`, `running`, `stopping`, or `terminated`.
+    </ResponseField>
+
+    <ResponseField name="gpu_type" type="string">
+      The GPU hardware type provisioned for the instance (e.g., `h100-80gb-sxm`).
+    </ResponseField>
+
+    <ResponseField name="gpu_count" type="integer">
+      The number of GPUs attached to the instance.
+    </ResponseField>
+
+    <ResponseField name="region" type="string">
+      The region slug where the instance is deployed.
+    </ResponseField>
+
+    <ResponseField name="ip_address" type="string">
+      The public IPv4 address of the instance. This field is `null` while the instance is still in `pending` status.
+    </ResponseField>
+
+    <ResponseField name="disk_image" type="string">
+      The disk image used to boot the instance (e.g., `pytorch-2.1-cuda-12`).
+    </ResponseField>
+
+    <ResponseField name="disk_size_gb" type="integer">
+      The size of the root disk in gigabytes.
+    </ResponseField>
+
+    <ResponseField name="ssh_key_id" type="string">
+      The ID of the SSH key authorized to access the instance.
+    </ResponseField>
+
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp recording when the instance was created.
+    </ResponseField>
+
+    <ResponseField name="hourly_cost_usd" type="number">
+      The current hourly cost of the instance in US dollars.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  The total number of instances matching your filters, regardless of `limit` and `offset`. Use this to calculate page counts.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl https://api.gpucloud.com/v1/instances \
+  -H "Authorization: Bearer <api-key>" \
+  -G \
+  --data-urlencode "status=running" \
+  --data-urlencode "region=us-east-1" \
+  --data-urlencode "limit=20" \
+  --data-urlencode "offset=0"
+```
+
+## Example Response
+
+```json
+{
+  "instances": [
+    {
+      "id": "inst_abc123",
+      "name": "my-training-run",
+      "status": "running",
+      "gpu_type": "h100-80gb-sxm",
+      "gpu_count": 1,
+      "region": "us-east-1",
+      "ip_address": "203.0.113.42",
+      "disk_image": "pytorch-2.1-cuda-12",
+      "disk_size_gb": 100,
+      "ssh_key_id": "key_xyz789",
+      "created_at": "2024-01-15T10:30:00Z",
+      "hourly_cost_usd": 3.50
+    }
+  ],
+  "total": 1
+}
+```

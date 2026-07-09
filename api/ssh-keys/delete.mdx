@@ -1,0 +1,40 @@
+---
+title: "Delete an SSH Key from Your GPU Cloud Account"
+sidebarTitle: "Delete SSH Key"
+description: "Permanently remove a registered SSH key from your GPU Cloud account to prevent it from being selected when launching new instances."
+---
+
+When an SSH key is no longer needed — for example, if a team member has left or a machine has been retired — you can remove it from your account using this endpoint. Deleting a key deregisters it from GPU Cloud, ensuring it cannot be attached to any new instances going forward. The operation is permanent and cannot be undone, so make sure you no longer need the key before proceeding.
+
+<Warning>
+  Removing a key only prevents it from being used on **new** instances. SSH keys are baked into an instance's `authorized_keys` file at launch time, so any existing instances that were started with this key will continue to accept connections from the corresponding private key. If you need to revoke access to a running instance, you must manually remove the key from `~/.ssh/authorized_keys` on that instance.
+</Warning>
+
+## Endpoint
+
+```
+DELETE https://api.gpucloud.com/v1/ssh-keys/{id}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the SSH key you want to delete (e.g., `key_xyz789`). You can retrieve key IDs from the [List SSH Keys](/api/ssh-keys/list) endpoint.
+</ParamField>
+
+## Response
+
+A successful deletion returns `204 No Content` with an empty response body.
+
+## Example Request
+
+```bash
+curl -X DELETE https://api.gpucloud.com/v1/ssh-keys/key_xyz789 \
+  -H "Authorization: Bearer <api-key>"
+```
+
+## Example Response
+
+```
+HTTP/1.1 204 No Content
+```

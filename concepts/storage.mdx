@@ -1,0 +1,148 @@
+---
+title: "Storage Options on GPU Cloud"
+sidebarTitle: "Storage"
+description: "Understand the difference between ephemeral instance storage and persistent volumes, and learn how snapshots protect your data on GPU Cloud."
+---
+
+GPU Cloud gives you two distinct storage models to match your performance and durability requirements. Instance storage is co-located NVMe SSD that delivers maximum throughput for active training jobs, while persistent volumes are network-attached drives that survive instance termination and can be shared across multiple instances over time. Choosing the right storage type — or combining both — is key to keeping your data safe and your workloads fast.
+
+## Instance Storage (Ephemeral)
+
+Every GPU instance comes with a local NVMe SSD that is physically attached to the host machine. This disk holds your operating system, pre-installed software, datasets you copy in, model checkpoints you write out, and any other files you create during a session.
+
+**Key characteristics:**
+
+- **Speed** — Direct NVMe access with no network hop delivers the highest possible sequential and random I/O performance. Large dataset reads and checkpoint writes benefit significantly from this locality.
+- **Capacity** — Ranges from 100 GB to 2 TB depending on the instance type. Check the instance type specification for the exact allocation.
+- **Lifecycle** — The disk exists only as long as the instance exists. When you terminate the instance, the data is permanently and irrecoverably deleted.
+- **No extra cost** — Instance storage is included in the hourly instance price at no additional charge.
+
+<Warning>
+  Do not rely solely on instance storage for data you want to keep. Copy checkpoints, datasets, and outputs to a persistent volume or external object storage before terminating your instance.
+</Warning>
+
+## Persistent Volumes
+
+Persistent volumes are network-attached block devices you provision independently from any instance. Once created, a volume exists in your account until you explicitly delete it — it survives instance stops, restarts, and terminations.
+
+**Key characteristics:**
+
+- **Durability** — Data is replicated across multiple drives in the same availability zone, protecting against individual disk failure.
+- **Flexibility** — Attach a volume to one instance, detach it, and re-attach it to a different instance in the same region — for example, to hand off a trained model to an inference instance.
+- **Capacity** — Available in sizes from 50 GB to 64 TB, expandable online without detaching.
+- **Performance** — Network-attached storage introduces more latency than local NVMe. For I/O-intensive hot-path operations (e.g., reading training batches), copy data to instance storage first.
+- **Pricing** — Billed by the GB-month while the volume exists, regardless of whether it is attached to a running instance.
+
+### Attaching and Detaching Volumes
+
+<Tabs>
+  <Tab title="Dashboard">
+    Open the **Storage** section in the sidebar, select your volume, and click **Attach**. Choose the target instance and the mount path, then confirm. To detach, return to the volume detail page and click **Detach**.
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    # Create a 500 GB persistent volume
+    gpucloud volumes create --name training-data --size 500 --region us-east-1
+
+    # Attach volume to a running instance
+    gpucloud volumes attach vol_x9y8z7w6 \
+      --instance inst_a1b2c3d4 \
+      --mount-path /mnt/data
+
+    # Detach volume from its current instance
+    gpucloud volumes detach vol_x9y8z7w6
+
+    # List all volumes in your account
+    gpucloud volumes list
+    ```
+  </Tab>
+  <Tab title="API">
+    ```bash
+    # Create a persistent volume
+    curl -X POST https://api.gpucloud.com/v1/volumes \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "training-data",
+        "size_gb": 500,
+        "region": "us-east-1"
+      }'
+
+    # Attach volume to an instance
+    curl -X POST https://api.gpucloud.com/v1/volumes/vol_x9y8z7w6/attach \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "instance_id": "inst_a1b2c3d4",
+        "mount_path": "/mnt/data"
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Snapshots
+
+A snapshot is a point-in-time, read-only copy of a persistent volume. Snapshots are stored redundantly in the GPU Cloud object store and can be used to:
+
+- **Back up work in progress** before a risky experiment or software upgrade
+- **Clone environments** by creating a new volume from a snapshot
+- **Share datasets or model weights** across team members by granting snapshot access
+
+Snapshots are incremental — only the blocks that changed since the last snapshot are stored, keeping storage costs low even when you snapshot frequently.
+
+<Steps>
+  <Step title="Create a snapshot">
+    ```bash
+    gpucloud snapshots create \
+      --volume vol_x9y8z7w6 \
+      --name "checkpoint-epoch-50"
+    ```
+  </Step>
+  <Step title="List your snapshots">
+    ```bash
+    gpucloud snapshots list --volume vol_x9y8z7w6
+    ```
+  </Step>
+  <Step title="Restore to a new volume">
+    ```bash
+    gpucloud volumes create \
+      --from-snapshot snap_m3n4o5p6 \
+      --name restored-data \
+      --region us-east-1
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  Snapshots are billed at a flat rate per GB-month of stored data. Because snapshots are incremental, each successive snapshot typically costs much less than the full volume size.
+</Note>
+
+## Storage Comparison
+
+| Feature | Instance Storage | Persistent Volume |
+|---|---|---|
+| Type | Local NVMe SSD | Network-attached block storage |
+| Performance | Very high (direct NVMe) | High (network I/O) |
+| Survives instance termination | ❌ No | ✅ Yes |
+| Attachable to multiple instances | ❌ No | ✅ Yes (one at a time) |
+| Resizable after creation | ❌ No | ✅ Yes (online) |
+| Snapshot support | ❌ No | ✅ Yes |
+| Included in instance price | ✅ Yes | ❌ No (per GB-month) |
+| Best for | Hot training data, OS, active checkpoints | Datasets, model weights, long-term outputs |
+
+## Recommended Patterns
+
+<CardGroup cols={2}>
+  <Card title="Training Jobs" icon="dumbbell">
+    Store raw datasets on a persistent volume. At job start, copy the active shard to instance storage for fast I/O. Write final checkpoints back to the persistent volume before the job ends.
+  </Card>
+  <Card title="Inference Endpoints" icon="server">
+    Keep model weights on a persistent volume so you can attach them to a replacement instance instantly if the original is recycled or terminated.
+  </Card>
+  <Card title="Team Collaboration" icon="users">
+    Snapshot a curated dataset volume and share the snapshot ID with teammates. Each team member creates their own volume from the snapshot, ensuring reproducible starting conditions.
+  </Card>
+  <Card title="Backup Strategy" icon="shield-check">
+    Schedule regular snapshots of your persistent volumes using the API or CLI in a cron job. Retain the last N snapshots to balance recovery point objectives against snapshot storage costs.
+  </Card>
+</CardGroup>

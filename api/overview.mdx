@@ -1,0 +1,116 @@
+---
+title: "GPU Cloud REST API Overview"
+sidebarTitle: "Overview"
+description: "Learn how to interact with the GPU Cloud REST API — including base URL, request format, rate limits, and error handling."
+---
+
+The GPU Cloud REST API gives you programmatic access to every aspect of your GPU infrastructure. Whether you're provisioning instances, managing snapshots, or querying billing data, every action available in the console is also available through this API. All communication happens over HTTPS, and all request and response bodies are encoded as JSON, making the API straightforward to integrate with any language or toolchain.
+
+## Base URL and Versioning
+
+Every API request targets the following base URL:
+
+```
+https://api.gpucloud.com/v1
+```
+
+The `/v1` path segment represents the current stable version of the API. When breaking changes are introduced, GPU Cloud will release a new versioned path (e.g., `/v2`) and provide a deprecation window so you have time to migrate. Non-breaking additions — such as new optional fields or new endpoints — may be added to the current version at any time.
+
+## Request and Response Format
+
+All request bodies must be sent as JSON. Include the `Content-Type: application/json` header on any request that carries a body (e.g., `POST`, `PATCH`, `PUT`). Responses always return JSON, and successful responses use standard HTTP `2xx` status codes.
+
+```http
+Content-Type: application/json
+Accept: application/json
+```
+
+<Note>
+  Requests that omit the `Content-Type: application/json` header on a body-bearing request will receive a `400 invalid_request` error.
+</Note>
+
+## Rate Limits
+
+The API enforces a limit of **1,000 requests per minute** per API key. The response headers on every successful call include the following fields to help you manage consumption:
+
+| Header | Description |
+|---|---|
+| `X-RateLimit-Limit` | Maximum requests allowed per minute |
+| `X-RateLimit-Remaining` | Requests remaining in the current window |
+| `X-RateLimit-Reset` | Unix timestamp when the current window resets |
+
+If you exceed the limit, the API returns a `429 rate_limited` error. Implement exponential back-off in your client to handle bursts gracefully.
+
+## Error Format
+
+When a request fails, the API returns a JSON object with a single `error` key containing a machine-readable `code` and a human-readable `message`:
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "The requested instance 'inst_abc123' does not exist."
+  }
+}
+```
+
+### Error Codes
+
+| HTTP Status | Code | Description |
+|---|---|---|
+| `400` | `invalid_request` | The request body or parameters are malformed or missing required fields. |
+| `401` | `unauthorized` | The API key is missing, invalid, or has been revoked. |
+| `404` | `not_found` | The requested resource does not exist or is not accessible with your credentials. |
+| `429` | `rate_limited` | You have exceeded the 1,000 requests/minute rate limit. |
+| `500` | `internal_error` | An unexpected error occurred on GPU Cloud's servers. Retry with back-off. |
+
+## Making Your First API Call
+
+The example below retrieves a list of your running instances — a simple read operation that requires only a valid API key and no request body.
+
+<CodeGroup>
+
+```bash curl
+curl -X GET https://api.gpucloud.com/v1/instances \
+  -H "Authorization: Bearer <your-api-key>" \
+  -H "Accept: application/json"
+```
+
+```python Python
+import requests
+
+api_key = "<your-api-key>"
+
+response = requests.get(
+    "https://api.gpucloud.com/v1/instances",
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    },
+)
+
+response.raise_for_status()
+instances = response.json()
+print(instances)
+```
+
+</CodeGroup>
+
+## Next Steps
+
+Explore the sections below to learn how to authenticate and start working with GPU Cloud resources.
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Learn how to generate and use API keys to authenticate every request.
+  </Card>
+  <Card title="Instances" icon="server" href="/api/instances">
+    Provision, manage, and terminate GPU compute instances via the API.
+  </Card>
+  <Card title="Snapshots" icon="camera" href="/api/storage/snapshots">
+    Create and restore point-in-time snapshots of your instances and volumes.
+  </Card>
+  <Card title="Billing" icon="credit-card" href="/guides/billing-and-costs">
+    Query usage records and cost breakdowns programmatically.
+  </Card>
+</CardGroup>

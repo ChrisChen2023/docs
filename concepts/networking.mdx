@@ -1,0 +1,169 @@
+---
+title: "Networking on GPU Cloud"
+sidebarTitle: "Networking"
+description: "Learn how public IPs, firewall rules, private networking, and bandwidth pricing work together to connect your GPU Cloud instances securely."
+---
+
+Every GPU instance you launch on GPU Cloud is connected to both a public network and an isolated private network within your account. Public connectivity lets you SSH in, serve API endpoints, and pull packages from the internet. Private networking lets your instances talk to each other at low latency without exposing traffic to the public internet. Firewall rules give you fine-grained control over exactly which traffic is allowed at each boundary. Understanding these building blocks helps you design architectures that are both reachable and secure.
+
+## Public IP Addresses
+
+Each instance is assigned a public IPv4 address automatically when it enters the `running` state. This address is your primary point of ingress for SSH access, HTTP/HTTPS services, and any other traffic you choose to expose.
+
+**Dynamic vs. static IPs:**
+
+- **Dynamic (default)** — A new IP is assigned each time the instance starts. If you stop and restart an instance, the IP may change. Dynamic IPs are included at no additional cost.
+- **Static (reserved)** — You can reserve a static public IP and associate it with an instance. The IP remains yours even when the instance is stopped, ensuring your endpoint address never changes. Static IPs are billed at a small hourly rate while reserved.
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # Reserve a static IP
+    gpucloud ips reserve --region us-east-1 --name my-static-ip
+
+    # Associate the static IP with an instance
+    gpucloud ips associate eip_r1s2t3u4 --instance inst_a1b2c3d4
+
+    # Disassociate and release when no longer needed
+    gpucloud ips disassociate eip_r1s2t3u4
+    gpucloud ips release eip_r1s2t3u4
+    ```
+  </Tab>
+  <Tab title="API">
+    ```bash
+    # Reserve a static IP
+    curl -X POST https://api.gpucloud.com/v1/ips \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"region": "us-east-1", "name": "my-static-ip"}'
+
+    # Associate with an instance
+    curl -X POST https://api.gpucloud.com/v1/ips/eip_r1s2t3u4/associate \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"instance_id": "inst_a1b2c3d4"}'
+    ```
+  </Tab>
+</Tabs>
+
+## Security Groups and Firewall Rules
+
+Security groups are stateful virtual firewalls attached to your instances. You define inbound and outbound rules that specify which protocols, ports, and source/destination IP ranges are permitted. All other traffic is denied by default.
+
+<Note>
+  Every new instance is automatically added to a **default security group** that allows inbound SSH on **port 22** from any IP address (`0.0.0.0/0`). This lets you connect immediately after launch. Restrict the SSH source range to your own IP or CIDR block for a more secure configuration.
+</Note>
+
+### Rule Structure
+
+Each firewall rule specifies:
+
+| Field | Description | Example |
+|---|---|---|
+| Direction | `inbound` or `outbound` | `inbound` |
+| Protocol | `tcp`, `udp`, or `icmp` | `tcp` |
+| Port / Range | Single port or range | `8888` or `8000–9000` |
+| Source / Destination | CIDR block or another security group | `203.0.113.0/24` |
+| Action | Always `allow` (denied traffic is implicit) | `allow` |
+
+### Common Rule Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Allow HTTPS inbound from anywhere
+  gpucloud firewall add-rule \
+    --group sg_v5w6x7y8 \
+    --direction inbound \
+    --protocol tcp \
+    --port 443 \
+    --source 0.0.0.0/0
+
+  # Allow Jupyter (port 8888) from a specific IP only
+  gpucloud firewall add-rule \
+    --group sg_v5w6x7y8 \
+    --direction inbound \
+    --protocol tcp \
+    --port 8888 \
+    --source 203.0.113.42/32
+
+  # Allow all outbound traffic (default)
+  gpucloud firewall add-rule \
+    --group sg_v5w6x7y8 \
+    --direction outbound \
+    --protocol all \
+    --destination 0.0.0.0/0
+  ```
+
+  ```json API
+  // POST https://api.gpucloud.com/v1/security-groups/sg_v5w6x7y8/rules
+  {
+    "direction": "inbound",
+    "protocol": "tcp",
+    "port": 8888,
+    "source": "203.0.113.42/32",
+    "description": "Jupyter from office IP"
+  }
+  ```
+</CodeGroup>
+
+<Warning>
+  Avoid exposing sensitive ports such as database ports (5432, 3306, 6379) to `0.0.0.0/0`. Use private networking for inter-instance communication and restrict public access to only the ports your application genuinely needs to serve externally.
+</Warning>
+
+## Private Networking
+
+All instances in the same region and the same account are automatically placed on a shared private network. Private IP addresses are assigned from the `10.0.0.0/8` range and remain stable for the lifetime of the instance — they do not change on restart.
+
+**Why use private networking:**
+
+- **No bandwidth charges** — Traffic between instances on the private network is free.
+- **Lower latency** — Private traffic stays within the data center, avoiding the public internet routing path.
+- **Security** — Services (databases, model servers, distributed training coordinators) can communicate without being exposed publicly.
+
+You can look up any instance's private IP from the dashboard or via the API and use it directly in your application configuration or training launch scripts.
+
+```bash
+# Get private IP of a running instance
+gpucloud instances get inst_a1b2c3d4 --format json | jq '.private_ip'
+
+# Use private IP in a PyTorch distributed launch
+torchrun \
+  --nproc_per_node=8 \
+  --nnodes=2 \
+  --master_addr="10.0.1.15" \
+  --master_port=29500 \
+  train.py
+```
+
+<Tip>
+  When running multi-node distributed training jobs, always use private IP addresses for the `--master_addr` parameter. This keeps gradient synchronisation traffic off the public network, reduces latency, and avoids incurring public egress bandwidth charges.
+</Tip>
+
+## Bandwidth and Pricing
+
+| Traffic Type | Direction | Rate |
+|---|---|---|
+| Public inbound (ingress) | Internet → Instance | Free |
+| Public outbound (egress) | Instance → Internet | $0.05 / GB (first 1 TB/month), $0.04 / GB thereafter |
+| Private inbound | Instance → Instance (same region) | Free |
+| Private outbound | Instance → Instance (same region) | Free |
+| Cross-region private | Instance → Instance (different region) | $0.02 / GB |
+
+**Instance bandwidth caps** vary by instance type. All instances receive at least 1 Gbps public uplink. High-performance multi-GPU instances (H100 8×, A100 8×) include up to 25 Gbps public networking to support large dataset ingestion and checkpoint uploads.
+
+<Note>
+  Bandwidth usage is metered and displayed in real time on the **Billing** dashboard. Set a budget alert to get notified before your egress costs exceed a threshold — especially useful for jobs that stream large datasets from external sources.
+</Note>
+
+## Networking Summary
+
+| Feature | Detail |
+|---|---|
+| Public IPv4 | Auto-assigned on start; static IPs available |
+| IPv6 | Coming soon |
+| Default open port | 22 (SSH) |
+| Firewall model | Stateful security groups, deny-by-default |
+| Private network range | `10.0.0.0/8` |
+| Private traffic cost | Free within same region |
+| Public egress cost | From $0.05 / GB |
+| Max instance bandwidth | Up to 25 Gbps (multi-GPU instances) |

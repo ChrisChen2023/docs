@@ -1,0 +1,164 @@
+---
+title: "Run Jupyter Notebooks on a GPU Instance"
+sidebarTitle: "Jupyter Notebooks"
+description: "Start a Jupyter Notebook server on your GPU Cloud instance, forward the port over SSH, and open it in your local browser for interactive GPU-accelerated development."
+---
+
+Jupyter Notebooks are one of the most popular environments for interactive machine learning development, and running them directly on a GPU Cloud instance gives you full access to your GPU from a familiar browser-based interface. The workflow is straightforward: start the Jupyter server on the instance, create a secure SSH tunnel to forward the port to your laptop, and then open `localhost:8888` in your browser as if Jupyter were running locally.
+
+## Prerequisites
+
+- A **Running** GPU Cloud instance ([launch one here](/guides/launch-instance))
+- SSH access configured on your local machine ([SSH guide](/guides/connect-ssh))
+- Jupyter installed on the instance — pre-built PyTorch and TensorFlow images include JupyterLab; bare Ubuntu images require a manual install (covered below)
+
+## Step 1 — SSH Into Your Instance
+
+Open a terminal and connect to your instance:
+
+```bash
+ssh -i ~/.ssh/your_key ubuntu@<ip-address>
+```
+
+Keep this terminal open. You'll use it to start Jupyter and keep it running.
+
+## Step 2 — Install Jupyter (Bare Images Only)
+
+If you launched with the **Ubuntu 22.04 (Bare)** image, install JupyterLab now. Pre-built PyTorch and TensorFlow images already include it — skip ahead to Step 3.
+
+```bash
+pip install jupyterlab
+```
+
+<Note>
+  If `pip` is not found on a bare image, install it first with `sudo apt-get update && sudo apt-get install -y python3-pip`, then re-run the command above.
+</Note>
+
+## Step 3 — Start the Jupyter Server
+
+Launch JupyterLab on port `8888`, bound to localhost only (so it isn't exposed directly to the internet):
+
+```bash
+jupyter lab \
+  --no-browser \
+  --port=8888 \
+  --ip=127.0.0.1
+```
+
+Jupyter will print several lines of output ending with a URL that includes a token, for example:
+
+```
+http://127.0.0.1:8888/lab?token=abc123def456...
+```
+
+**Copy the full URL including the token** — you'll need it in Step 5. Leave this terminal session running. To keep Jupyter alive after you disconnect, start it inside `tmux` or `screen`:
+
+```bash
+tmux new -s jupyter
+jupyter lab --no-browser --port=8888 --ip=127.0.0.1
+# Press Ctrl-B then D to detach; tmux keeps Jupyter running in the background
+```
+
+<Warning>
+  **Always secure Jupyter with a token or password.** By default, JupyterLab generates a one-time token for each launch. Never start Jupyter with `--NotebookApp.token=''` or `--no-auth` on a cloud instance — doing so leaves an unauthenticated code execution environment accessible to anyone who can reach the port. If you want a stable password instead of a rotating token, run `jupyter lab password` once to set one, then restart the server.
+</Warning>
+
+## Step 4 — Create an SSH Tunnel
+
+In a **new, separate terminal window on your local machine** (not the SSH session), run:
+
+```bash
+ssh -L 8888:localhost:8888 -i ~/.ssh/your_key ubuntu@<ip-address> -N
+```
+
+| Flag | Meaning |
+|------|---------|
+| `-L 8888:localhost:8888` | Forward local port 8888 → remote port 8888 |
+| `-N` | Don't execute a remote command; just hold the tunnel open |
+
+This command will appear to hang — that's expected. The tunnel is active as long as this terminal stays open.
+
+<Tip>
+  If port `8888` is already in use on your laptop, change the local port number. For example, `-L 9999:localhost:8888` lets you open Jupyter at `localhost:9999` in your browser instead.
+</Tip>
+
+If you prefer a single combined command that opens a shell **and** creates the tunnel at the same time, use:
+
+```bash
+ssh -L 8888:localhost:8888 -i ~/.ssh/your_key ubuntu@<ip-address>
+```
+
+Omitting `-N` opens an interactive shell in addition to forwarding the port.
+
+## Step 5 — Open Jupyter in Your Browser
+
+Paste the URL you copied in Step 3 directly into your browser address bar:
+
+```
+http://127.0.0.1:8888/lab?token=abc123def456...
+```
+
+JupyterLab opens in your browser. The Python kernel runs on your GPU Cloud instance, giving every notebook cell access to the full GPU.
+
+## Verify GPU Access in a Notebook
+
+Open a new notebook and run the following cell to confirm your GPU is visible:
+
+```python
+import torch
+
+print("CUDA available:", torch.cuda.is_available())
+print("GPU name:      ", torch.cuda.get_device_name(0))
+print("VRAM (GB):     ", torch.cuda.get_device_properties(0).total_memory / 1e9)
+```
+
+Expected output on an A100 instance:
+
+```
+CUDA available: True
+GPU name:       NVIDIA A100-SXM4-80GB
+VRAM (GB):      85.899345920
+```
+
+For TensorFlow images, use:
+
+```python
+import tensorflow as tf
+
+gpus = tf.config.list_physical_devices('GPU')
+print("GPUs found:", len(gpus))
+for gpu in gpus:
+    print(" ", gpu)
+```
+
+## Using VS Code Instead of JupyterLab
+
+If you prefer VS Code, the **Remote - SSH** extension connects directly to your instance and supports Jupyter notebooks natively — no port forwarding required. Install the extension locally, press `Ctrl+Shift+P` → **Remote-SSH: Connect to Host**, and enter `ubuntu@<ip-address>`. Once connected, open any `.ipynb` file and VS Code will prompt you to select a kernel from the instance's Python environments.
+
+## Keeping Jupyter Alive Between Sessions
+
+Use `tmux` to run Jupyter persistently so it continues after you close your laptop:
+
+```bash
+# On the instance: start a named tmux session
+tmux new -s jupyter
+
+# Inside tmux: launch Jupyter
+jupyter lab --no-browser --port=8888 --ip=127.0.0.1
+
+# Detach (keeps Jupyter running): Ctrl-B, then D
+
+# Later — reattach from any SSH session:
+tmux attach -t jupyter
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Docker Containers" icon="docker" href="/guides/docker-containers">
+    Run containerized GPU workloads alongside your notebooks.
+  </Card>
+  <Card title="Persistent Storage" icon="hard-drive" href="/guides/persistent-storage">
+    Store datasets and checkpoints on volumes that outlive your instance.
+  </Card>
+</CardGroup>

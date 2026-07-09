@@ -1,0 +1,246 @@
+---
+title: "Attach and Manage Persistent Storage Volumes"
+sidebarTitle: "Persistent Storage"
+description: "Create persistent NVMe volumes on GPU Cloud, attach them to instances, format and mount them, and reattach them to new instances to keep your data safe."
+---
+
+By default, a GPU Cloud instance's root disk is ephemeral — it exists for the lifetime of that instance. Persistent volumes are separate block storage devices that live independently of any instance. You can attach a volume to an instance, fill it with datasets and model checkpoints, detach it, and reattach it to a completely different instance without losing a single byte. This makes persistent volumes the right place to store anything that needs to outlive a single compute session.
+
+## Volume Types
+
+GPU Cloud offers two volume types:
+
+| Type | Latency | Best For |
+|------|---------|----------|
+| **NVMe SSD** | < 0.1 ms | High-throughput training I/O, large datasets |
+| **Network-Attached** | 1–5 ms | Shared access, archival, cost-sensitive storage |
+
+<Tip>
+  For active training workloads that perform many small random reads (e.g., loading image batches), always choose **NVMe SSD**. Network-attached volumes are better suited for storing completed checkpoints and infrequently accessed data.
+</Tip>
+
+---
+
+## Workflow 1 — Create a Volume
+
+<Steps>
+  <Step title="Open the Volumes Page">
+    Log in to the [GPU Cloud console](https://console.gpucloud.com). In the left sidebar, click **Storage → Volumes**. Click **Create Volume** in the top-right corner.
+  </Step>
+
+  <Step title="Configure the Volume">
+    Fill in the creation form:
+
+    - **Name** — a descriptive label (e.g., `imagenet-dataset`)
+    - **Region** — must match the region of the instance you plan to attach it to
+    - **Type** — NVMe SSD or Network-Attached
+    - **Size** — in GB (minimum 10 GB, maximum 64 TB)
+
+    Click **Create Volume**. The volume appears in the list with an **Available** status within a few seconds.
+  </Step>
+</Steps>
+
+---
+
+## Workflow 2 — Attach a Volume to an Instance
+
+<Steps>
+  <Step title="Open the Instance Detail">
+    Navigate to **Instances**, click the name of a **Running** or **Stopped** instance in the same region as your volume.
+  </Step>
+
+  <Step title="Attach the Volume">
+    Click the **Storage** tab, then **Attach Volume**. Select your volume from the dropdown and click **Attach**.
+
+    The console shows the volume as **Attached** and displays the device name it was assigned, for example `/dev/vdb` or `/dev/nvme1n1`. Note this device path — you'll need it in the next step.
+  </Step>
+</Steps>
+
+---
+
+## Workflow 3 — Format and Mount a New Volume
+
+Run these commands over SSH the **first time** you use a brand-new volume. Do **not** re-format a volume that already contains data.
+
+<Steps>
+  <Step title="Confirm the Device Path">
+    SSH into your instance and list block devices to confirm the attached volume's device name:
+
+    ```bash
+    lsblk
+    ```
+
+    You'll see output similar to:
+
+    ```
+    NAME        MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+    vda         252:0    0    50G  0 disk
+    └─vda1      252:1    0    50G  0 part /
+    vdb         252:16   0   500G  0 disk
+    ```
+
+    In this example, the new volume is `/dev/vdb` (no partition or mount point yet).
+  </Step>
+
+  <Step title="Format the Volume">
+    Format the volume with the ext4 filesystem:
+
+    ```bash
+    sudo mkfs.ext4 /dev/vdb
+    ```
+
+    This takes a few seconds for small volumes and up to a minute for volumes larger than 1 TB.
+
+    <Warning>
+      **This permanently erases all data on the device.** Only run `mkfs.ext4` on a new, empty volume. If you are reattaching a volume that already has a filesystem and data, skip this step and go directly to mounting.
+    </Warning>
+  </Step>
+
+  <Step title="Create a Mount Point">
+    Create a directory where the volume will be accessible:
+
+    ```bash
+    sudo mkdir -p /mnt/data
+    ```
+
+    You can use any path — `/mnt/data`, `/data`, `/home/ubuntu/datasets`, etc.
+  </Step>
+
+  <Step title="Mount the Volume">
+    Mount the formatted volume to your chosen directory:
+
+    ```bash
+    sudo mount /dev/vdb /mnt/data
+    ```
+
+    Verify the mount succeeded:
+
+    ```bash
+    df -h /mnt/data
+    ```
+
+    Expected output:
+
+    ```
+    Filesystem      Size  Used Avail Use% Mounted on
+    /dev/vdb        493G   28K  468G   1% /mnt/data
+    ```
+  </Step>
+
+  <Step title="Fix Ownership">
+    By default the mounted volume is owned by `root`. Give your `ubuntu` user write access:
+
+    ```bash
+    sudo chown -R ubuntu:ubuntu /mnt/data
+    ```
+  </Step>
+
+  <Step title="Configure Auto-Mount on Boot (Optional)">
+    To automatically mount the volume every time the instance boots, add an entry to `/etc/fstab`. First, get the volume's UUID:
+
+    ```bash
+    sudo blkid /dev/vdb
+    ```
+
+    Output:
+
+    ```
+    /dev/vdb: UUID="a1b2c3d4-e5f6-7890-abcd-ef1234567890" TYPE="ext4"
+    ```
+
+    Open `/etc/fstab` in a text editor:
+
+    ```bash
+    sudo nano /etc/fstab
+    ```
+
+    Add the following line at the bottom, replacing the UUID with yours:
+
+    ```text
+    UUID=a1b2c3d4-e5f6-7890-abcd-ef1234567890  /mnt/data  ext4  defaults,nofail  0  2
+    ```
+
+    The `nofail` option ensures the instance still boots normally if the volume is not attached.
+
+    Test the fstab entry without rebooting:
+
+    ```bash
+    sudo mount -a
+    ```
+
+    No output means success.
+  </Step>
+</Steps>
+
+---
+
+## Workflow 4 — Detach a Volume
+
+<Steps>
+  <Step title="Unmount the Volume on the Instance">
+    Before detaching in the console, unmount the filesystem to prevent data corruption:
+
+    ```bash
+    sudo umount /mnt/data
+    ```
+
+    If you get a "device is busy" error, find what's using it:
+
+    ```bash
+    lsof +D /mnt/data
+    ```
+
+    Stop or move those processes, then retry `umount`.
+  </Step>
+
+  <Step title="Detach in the Console">
+    In the GPU Cloud console, open the instance's **Storage** tab, find the volume, and click **Detach**. The volume status returns to **Available** within seconds.
+  </Step>
+</Steps>
+
+---
+
+## Workflow 5 — Reattach a Volume to a Different Instance
+
+<Steps>
+  <Step title="Attach to the New Instance">
+    Follow **Workflow 2** above to attach the **Available** volume to any other running instance in the same region.
+  </Step>
+
+  <Step title="Mount the Existing Filesystem">
+    SSH into the new instance. Confirm the device name with `lsblk`, then mount it — no formatting needed:
+
+    ```bash
+    sudo mkdir -p /mnt/data
+    sudo mount /dev/vdb /mnt/data
+    sudo chown -R ubuntu:ubuntu /mnt/data
+    ```
+
+    All your files are immediately accessible at `/mnt/data`.
+  </Step>
+</Steps>
+
+---
+
+## Checking Volume Usage
+
+Monitor disk usage on the mounted volume at any time:
+
+```bash
+# Human-readable summary for the mount point
+df -h /mnt/data
+
+# Disk usage by subdirectory (useful for large dataset folders)
+du -sh /mnt/data/*
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Billing & Costs" icon="credit-card" href="/guides/billing-and-costs">
+    Understand how persistent volume storage is billed per GB/month.
+  </Card>
+  <Card title="Docker Containers" icon="docker" href="/guides/docker-containers">
+    Mount persistent volumes into Docker containers for training workloads.
+  </Card>
+</CardGroup>

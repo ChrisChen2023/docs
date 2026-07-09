@@ -1,0 +1,86 @@
+---
+title: "GPU Types Available on GPU Cloud"
+sidebarTitle: "GPU Types"
+description: "Explore every GPU model available on GPU Cloud, their VRAM, ideal workloads, and starting prices to find the right hardware for your project."
+---
+
+GPU Cloud offers a range of NVIDIA GPU models so you can match hardware to your exact workload — without over-provisioning or paying for capability you do not need. From frontier AI training on H100s to cost-effective inference on A10s, every GPU type is available on demand in multiple regions. The sections below describe each option in detail, including the workloads where each card excels and the price at which you can get started.
+
+## Available GPU Models
+
+| GPU Model | VRAM | Best For | Hourly Price (from) |
+|---|---|---|---|
+| NVIDIA H100 80GB SXM5 | 80 GB HBM3 | Frontier AI training, large language models | $2.99 / hr |
+| NVIDIA A100 80GB SXM4 | 80 GB HBM2e | AI/ML training and inference | $1.99 / hr |
+| NVIDIA A100 40GB PCIe | 40 GB HBM2 | Cost-effective training and inference | $1.29 / hr |
+| NVIDIA RTX 4090 24GB | 24 GB GDDR6X | Development, fine-tuning, inference | $0.69 / hr |
+| NVIDIA A40 48GB | 48 GB GDDR6 | Professional visualization and inference | $0.89 / hr |
+| NVIDIA A10 24GB | 24 GB GDDR6 | Inference and light training | $0.49 / hr |
+
+<Tip>
+  Not sure which GPU to pick? Start with the **RTX 4090** for development and iterative experimentation — its low hourly rate makes it easy to iterate quickly. Once you are ready to scale a training run, move to the **A100 80GB** or **H100** for maximum throughput. If you are serving a model in production, the **A10** or **A40** offers the best cost-per-inference for most architectures.
+</Tip>
+
+## GPU Profiles In Depth
+
+<CardGroup cols={2}>
+  <Card title="NVIDIA H100 80GB SXM5" icon="bolt">
+    The H100 SXM5 is GPU Cloud's flagship training accelerator. With 80 GB of HBM3 memory, 3.35 TB/s of memory bandwidth, and NVLink 4.0 interconnects in multi-GPU configurations, it is purpose-built for pre-training and fine-tuning large language models, diffusion models, and other frontier workloads. Choose the H100 when model weights and optimizer states exceed 40 GB or when you need maximum tensor-core throughput.
+  </Card>
+  <Card title="NVIDIA A100 80GB SXM4" icon="brain">
+    The A100 80GB SXM4 is the workhorse of professional AI/ML teams. Its 80 GB of HBM2e memory accommodates large batch sizes and multi-modal architectures, while NVLink 3.0 makes multi-GPU training efficient. It handles both training and high-throughput inference, and its mature software ecosystem means virtually every framework is well-optimized for it.
+  </Card>
+  <Card title="NVIDIA A100 40GB PCIe" icon="scale-balanced">
+    The A100 40GB PCIe delivers A100-class compute at a lower price point. The PCIe form factor trades some inter-GPU bandwidth for broader availability and a reduced hourly rate, making it ideal when your model fits in 40 GB and you want to minimise costs without sacrificing training speed per GPU.
+  </Card>
+  <Card title="NVIDIA RTX 4090 24GB" icon="code">
+    The RTX 4090 is the go-to GPU for development and experimentation. Ada Lovelace architecture brings Ada-generation tensor cores and 24 GB of fast GDDR6X memory at the most accessible price on the platform. Use it to prototype, debug, and run fast iterations before committing to a larger training run on A100s or H100s.
+  </Card>
+  <Card title="NVIDIA A40 48GB" icon="display">
+    The A40 combines 48 GB of GDDR6 memory with full support for NVIDIA's professional visualization stack and solid FP32 and FP16 compute. It is a natural fit for inference workloads that require large KV caches, multi-modal pipelines blending rendering with AI, and applications that need OpenGL/Vulkan alongside CUDA.
+  </Card>
+  <Card title="NVIDIA A10 24GB" icon="gauge-high">
+    The A10 is optimised for inference at scale. Its Ampere architecture delivers efficient INT8 and FP16 inference performance in a power-efficient envelope. If you are deploying a production inference endpoint and want to minimise cost per query, the A10 is the most economical GPU on the platform.
+  </Card>
+</CardGroup>
+
+## Multi-GPU Configurations
+
+Several GPU types are available in multi-GPU instance configurations, letting you scale a single instance up to 8 GPUs connected via NVLink or NVSwitch for maximum inter-GPU bandwidth.
+
+| Instance Type | GPUs | Total VRAM | Use Case |
+|---|---|---|---|
+| `gpu.h100.1x` | 1× H100 80GB | 80 GB | Single-node training, large inference |
+| `gpu.h100.4x` | 4× H100 80GB | 320 GB | Mid-scale LLM training |
+| `gpu.h100.8x` | 8× H100 80GB | 640 GB | Full-scale LLM pre-training |
+| `gpu.a100-80gb.1x` | 1× A100 80GB | 80 GB | Training and inference |
+| `gpu.a100-80gb.8x` | 8× A100 80GB | 640 GB | Large-scale distributed training |
+| `gpu.rtx4090.1x` | 1× RTX 4090 | 24 GB | Development and fine-tuning |
+| `gpu.a10.1x` | 1× A10 | 24 GB | Production inference |
+
+<Note>
+  Multi-GPU instances are priced as a multiple of the single-GPU hourly rate. NVLink-connected configurations (H100 SXM5, A100 SXM4) provide significantly higher inter-GPU bandwidth than PCIe-connected multi-GPU setups and are recommended for data-parallel and tensor-parallel training jobs.
+</Note>
+
+## Choosing the Right GPU
+
+Use the decision guide below to narrow down your options quickly.
+
+<Tabs>
+  <Tab title="Training">
+    - **Model parameters > 7B or you need maximum throughput** → H100 80GB SXM5
+    - **Model parameters 1B–7B or budget-conscious training** → A100 80GB SXM4
+    - **Model fits in 40 GB and cost matters most** → A100 40GB PCIe
+    - **Prototyping or fine-tuning small models** → RTX 4090
+  </Tab>
+  <Tab title="Inference">
+    - **Large model serving (>20 GB weights)** → A100 80GB or H100 80GB
+    - **Mid-size models + cost efficiency** → A40 48GB
+    - **High-throughput production endpoint** → A10 24GB
+    - **Low-volume or development inference** → RTX 4090
+  </Tab>
+  <Tab title="Visualization">
+    - **Professional OpenGL/Vulkan + AI pipeline** → A40 48GB
+    - **Interactive notebooks and light rendering** → RTX 4090
+  </Tab>
+</Tabs>

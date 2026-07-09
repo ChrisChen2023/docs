@@ -1,0 +1,102 @@
+---
+title: "Get a Single GPU Instance by ID"
+sidebarTitle: "Get Instance"
+description: "Fetch the full details of a specific GPU instance using its unique ID, including its current status, networking info, and hourly cost."
+---
+
+The Get Instance endpoint returns the complete, up-to-date record for a single GPU instance. Use it to poll an instance's `status` while it boots, retrieve its `ip_address` once it's `running`, or inspect any of its configuration details at any time. You need only the instance's ID, which is returned when you [create an instance](/api/instances/create) or [list your instances](/api/instances/list).
+
+## Endpoint
+
+```
+GET https://api.gpucloud.com/v1/instances/{id}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the instance you want to retrieve (e.g., `inst_abc123`).
+</ParamField>
+
+## Response Fields
+
+A successful request returns `200 OK` with the full instance object.
+
+<ResponseField name="id" type="string">
+  The unique identifier for the instance (e.g., `inst_abc123`).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The human-readable name assigned to the instance at creation time.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  The current lifecycle status of the instance. Possible values:
+
+  - `pending` — The instance is being provisioned and has not yet booted.
+  - `running` — The instance is active and accessible via SSH.
+  - `stopping` — A termination request has been received and is being processed.
+  - `terminated` — The instance has been shut down and is no longer accessible.
+</ResponseField>
+
+<ResponseField name="gpu_type" type="string">
+  The GPU hardware type provisioned for the instance (e.g., `h100-80gb-sxm`).
+</ResponseField>
+
+<ResponseField name="gpu_count" type="integer">
+  The number of GPUs attached to the instance.
+</ResponseField>
+
+<ResponseField name="region" type="string">
+  The region slug where the instance is deployed (e.g., `us-east-1`).
+</ResponseField>
+
+<ResponseField name="ip_address" type="string">
+  The public IPv4 address of the instance. This field is `null` while the instance is still in `pending` status and becomes populated once the instance reaches `running`.
+</ResponseField>
+
+<ResponseField name="disk_image" type="string">
+  The identifier of the disk image used to boot the instance (e.g., `pytorch-2.1-cuda-12`).
+</ResponseField>
+
+<ResponseField name="disk_size_gb" type="integer">
+  The size of the root disk in gigabytes.
+</ResponseField>
+
+<ResponseField name="ssh_key_id" type="string">
+  The ID of the SSH public key authorized to access the instance.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp recording exactly when the instance was created and billing began.
+</ResponseField>
+
+<ResponseField name="hourly_cost_usd" type="number">
+  The current hourly rate for the instance in US dollars.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl https://api.gpucloud.com/v1/instances/inst_abc123 \
+  -H "Authorization: Bearer <api-key>"
+```
+
+## Example Response
+
+```json
+{
+  "id": "inst_abc123",
+  "name": "my-training-run",
+  "status": "running",
+  "gpu_type": "h100-80gb-sxm",
+  "gpu_count": 1,
+  "region": "us-east-1",
+  "ip_address": "203.0.113.42",
+  "disk_image": "pytorch-2.1-cuda-12",
+  "disk_size_gb": 100,
+  "ssh_key_id": "key_xyz789",
+  "created_at": "2024-01-15T10:30:00Z",
+  "hourly_cost_usd": 3.50
+}
+```

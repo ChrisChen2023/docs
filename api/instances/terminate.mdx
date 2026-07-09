@@ -1,0 +1,43 @@
+---
+title: "Terminate a GPU Instance Permanently"
+sidebarTitle: "Terminate Instance"
+description: "Permanently shut down and delete a GPU instance by ID. Billing stops immediately. All ephemeral data on the instance is irreversibly destroyed."
+---
+
+Terminating an instance shuts it down, releases the underlying hardware back to the pool, and stops billing immediately. You identify the instance to terminate by passing its ID in the URL path. A successful request returns `204 No Content` with an empty body — no further action is required on your end.
+
+<Warning>
+  **Termination is permanent and cannot be undone.** Once you send this request, all data stored on the instance's ephemeral disk is immediately and irreversibly destroyed. Any work that has not been saved to external persistent storage — such as an object store or a mounted volume — will be lost forever. Make sure you have backed up any files, model checkpoints, or datasets you need before terminating.
+</Warning>
+
+## Endpoint
+
+```
+DELETE https://api.gpucloud.com/v1/instances/{id}
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the instance you want to terminate (e.g., `inst_abc123`).
+</ParamField>
+
+## Response
+
+On success, the API returns `204 No Content` with an empty response body. No JSON payload is returned.
+
+If the instance ID does not exist or does not belong to your account, the API returns `404 Not Found`. If the instance is already in a `stopping` or `terminated` state, the API returns `409 Conflict`.
+
+## Example Request
+
+```bash
+curl https://api.gpucloud.com/v1/instances/inst_abc123 \
+  -X DELETE \
+  -H "Authorization: Bearer <api-key>"
+```
+
+## Example Response
+
+```
+HTTP/1.1 204 No Content
+```

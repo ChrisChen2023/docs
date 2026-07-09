@@ -1,0 +1,196 @@
+---
+title: "GPU Cloud Frequently Asked Questions"
+sidebarTitle: "FAQ"
+description: "Answers to the most common questions about GPU types, billing, storage, disk images, regions, support, and more on GPU Cloud."
+---
+
+Find quick answers to the most common questions about GPU Cloud below. If you don't see what you're looking for, visit our [documentation hub](/) or [contact support](https://gpucloud.com/support).
+
+<AccordionGroup>
+
+  <Accordion title="What GPU types are available?" icon="microchip">
+    GPU Cloud offers a range of NVIDIA GPUs suited to different workload types and budgets:
+
+    | GPU | VRAM | Best For |
+    |---|---|---|
+    | NVIDIA H100 SXM5 | 80 GB HBM3 | Large-scale LLM training, distributed workloads |
+    | NVIDIA A100 SXM4 | 80 GB HBM2e | General-purpose training and fine-tuning |
+    | NVIDIA A100 PCIe | 40 GB HBM2 | Cost-effective training and inference |
+    | NVIDIA RTX 4090 | 24 GB GDDR6X | Inference, smaller fine-tuning runs, development |
+    | NVIDIA L40S | 48 GB GDDR6 | Rendering, mixed inference/training workloads |
+
+    Availability varies by region. Run the following to list GPU types currently available in your target region:
+
+    ```bash
+    gpucloud instance create --help
+    ```
+
+    New GPU types are added regularly — check the [GPU Cloud pricing page](https://gpucloud.com/pricing) for the latest catalog.
+  </Accordion>
+
+  <Accordion title="How is billing calculated?" icon="credit-card">
+    GPU Cloud uses per-second billing on pay-as-you-go instances. You are charged from the moment your instance enters `running` state until it is terminated. Stopped instances are not billed for compute, but persistent volumes attached to them continue to accrue storage charges.
+
+    **Key billing facts:**
+    - Compute is billed by the second, with a one-minute minimum.
+    - Storage volumes are billed per GB per hour regardless of instance state.
+    - Egress bandwidth is billed per GB above the monthly free tier (100 GB included).
+    - Reserved instances (1-month or 12-month terms) offer significant discounts over on-demand rates — see [Reserved Instances](#can-i-reserve-instances-for-a-discount) below.
+
+    You can view a live cost breakdown and download invoices from the [Billing section](https://console.gpucloud.com/billing) of the dashboard.
+
+    <Tip>
+      Set a spend alert in your billing settings to receive an email notification when your monthly usage crosses a threshold you define.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Is my data preserved when I stop an instance?" icon="floppy-disk">
+    It depends on how you stop the instance:
+
+    - **Stopped (not terminated):** The root disk is preserved and your data remains intact. You can restart the instance and pick up exactly where you left off. Compute charges stop, but you continue to pay for the root disk storage.
+    - **Terminated:** The root disk is permanently deleted and all data on it is gone. This cannot be undone.
+
+    To safely preserve large datasets and model checkpoints across instance lifecycles — including termination — store them on a [persistent volume](/cli/commands). Persistent volumes are independent of any instance, survive termination, and can be re-attached to a new instance at any time.
+
+    <Warning>
+      Always move critical data to a persistent volume before terminating an instance. There is no recovery path for data on a terminated instance's root disk.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Can I upgrade a running instance?" icon="arrow-up">
+    GPU Cloud does not currently support in-place instance upgrades (changing GPU type, CPU, or RAM while an instance is running or stopped). To move to a more powerful GPU, you will need to:
+
+    1. Save your work to a persistent volume.
+    2. Terminate your existing instance.
+    3. Create a new instance with the desired GPU type and attach your volume.
+
+    ```bash
+    # Create a new, more powerful instance
+    gpucloud instance create --gpu h100 --region us-east-1 --image pytorch-2.1 --disk 100
+
+    # Re-attach your existing data volume
+    gpucloud volume attach <volume-id> <new-instance-id>
+    ```
+
+    We're actively working on live resize and instance upgrade features — subscribe to the [changelog](https://gpucloud.com/changelog) to be notified when they ship.
+  </Accordion>
+
+  <Accordion title="What disk images are available?" icon="circle-dot">
+    GPU Cloud provides pre-built, GPU-optimized disk images so you can start working immediately without manually installing drivers or frameworks. Available images include:
+
+    | Image Name | Framework | CUDA Version | Python |
+    |---|---|---|---|
+    | `pytorch-2.1` | PyTorch 2.1 | 12.1 | 3.10 |
+    | `pytorch-2.0` | PyTorch 2.0 | 11.8 | 3.10 |
+    | `tensorflow-2.14` | TensorFlow 2.14 | 12.2 | 3.11 |
+    | `tensorflow-2.12` | TensorFlow 2.12 | 11.8 | 3.10 |
+    | `cuda-12.2` | CUDA Toolkit only | 12.2 | 3.10 |
+    | `cuda-11.8` | CUDA Toolkit only | 11.8 | 3.10 |
+    | `ubuntu-22.04` | Base OS (no GPU drivers) | — | 3.10 |
+
+    All GPU images include NVIDIA drivers, `nvidia-smi`, `nvcc`, cuDNN, and `conda`. New framework versions are published within days of upstream releases. Check `gpucloud instance create --help` for the latest list.
+  </Accordion>
+
+  <Accordion title="How do I transfer data to and from an instance?" icon="arrow-right-arrow-left">
+    There are several ways to move data between your local machine and a GPU Cloud instance:
+
+    **SCP (small to medium files):**
+    ```bash
+    # Upload a file
+    scp -i ~/.ssh/id_rsa ./dataset.tar.gz ubuntu@<instance-ip>:~/
+
+    # Download a file
+    scp -i ~/.ssh/id_rsa ubuntu@<instance-ip>:~/model.pt ./
+    ```
+
+    **rsync (large directories, resumable):**
+    ```bash
+    # Sync a local directory to the instance
+    rsync -avz --progress ./data/ ubuntu@<instance-ip>:~/data/
+
+    # Sync from instance back to local
+    rsync -avz --progress ubuntu@<instance-ip>:~/checkpoints/ ./checkpoints/
+    ```
+
+    **Cloud storage (recommended for large datasets):**
+    Install the AWS CLI or `rclone` on your instance and pull data from S3, Google Cloud Storage, or any S3-compatible store:
+
+    ```bash
+    aws s3 cp s3://my-bucket/dataset.tar.gz .
+    ```
+
+    **Persistent volumes:** For datasets you reuse across multiple training runs or instances, store them on a persistent volume. Attach the volume to a new instance and all the data is immediately available — no transfer needed.
+  </Accordion>
+
+  <Accordion title="Is there a free tier or trial?" icon="gift">
+    New accounts receive **$50 in free credits** upon sign-up, valid for 30 days. Credits apply automatically to any on-demand instance usage and are a great way to evaluate the platform before committing.
+
+    To claim your credits:
+    1. [Create an account](https://console.gpucloud.com/signup).
+    2. Verify your email address.
+    3. Credits are applied automatically — no promo code needed.
+
+    There is no permanent free tier for compute, but free credits can be renewed through referral programs and startup sponsorships. Visit the [credits page](https://gpucloud.com/credits) for current promotions.
+
+    <Note>
+      Free credits cannot be used for reserved instance commitments or applied retroactively to past billing periods.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Can I reserve instances for a discount?" icon="tag">
+    Yes. GPU Cloud offers reserved instance pricing for customers who can commit to a fixed term. Reserved instances are significantly cheaper than on-demand rates for sustained workloads.
+
+    | Term | Discount vs. On-Demand |
+    |---|---|
+    | 1 month | Up to 20% off |
+    | 12 months | Up to 45% off |
+
+    Reserved instances require an upfront payment and are billed at the reserved rate regardless of whether the instance is running. To purchase a reservation, go to the [Reserved Instances](https://console.gpucloud.com/billing/reserved) section of the dashboard, select your GPU type, region, and term, and complete checkout.
+
+    <Tip>
+      Reserved instances make most sense for long-running training jobs or persistent inference services. For intermittent or exploratory workloads, on-demand pricing is usually more economical.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="What regions are available?" icon="globe">
+    GPU Cloud currently operates in the following regions:
+
+    | Region Code | Location |
+    |---|---|
+    | `us-east-1` | Northern Virginia, USA |
+    | `us-west-2` | Oregon, USA |
+    | `eu-west-2` | London, UK |
+    | `eu-central-1` | Frankfurt, Germany |
+    | `ap-southeast-1` | Singapore |
+    | `ap-northeast-1` | Tokyo, Japan |
+
+    Not all GPU types are available in every region. Use the dashboard or CLI to check availability before provisioning. New regions are added regularly — follow the [changelog](https://gpucloud.com/changelog) for announcements.
+
+    To set a default region for all CLI commands:
+
+    ```bash
+    gpucloud config set region us-east-1
+    ```
+  </Accordion>
+
+  <Accordion title="How do I get support?" icon="headset">
+    GPU Cloud offers multiple support channels depending on your plan:
+
+    | Channel | Availability | How to Reach |
+    |---|---|---|
+    | Documentation | Always | [docs.gpucloud.com](https://docs.gpucloud.com) |
+    | Community Forum | Always | [community.gpucloud.com](https://community.gpucloud.com) |
+    | Email Support | Business hours (Mon–Fri) | [support@gpucloud.com](mailto:support@gpucloud.com) |
+    | Live Chat | Business hours | Dashboard bottom-right widget |
+    | Priority Support (Pro plan) | 24/7, 4-hour SLA | [console.gpucloud.com/support](https://console.gpucloud.com/support) |
+
+    When opening a ticket, include the following to get the fastest response:
+    - Your **instance ID** (e.g. `i-a1b2c3d4`)
+    - The **error message** or unexpected behavior you're seeing
+    - Output of `gpucloud instance get <id>` if the issue is instance-related
+    - Steps you've already tried
+
+    For billing disputes, contact [billing@gpucloud.com](mailto:billing@gpucloud.com) directly.
+  </Accordion>
+
+</AccordionGroup>

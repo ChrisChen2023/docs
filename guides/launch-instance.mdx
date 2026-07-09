@@ -1,0 +1,120 @@
+---
+title: "Launch a GPU Instance on GPU Cloud"
+sidebarTitle: "Launch Instance"
+description: "Provision a GPU-accelerated compute instance in minutes using the GPU Cloud console. Choose your GPU, region, disk image, and storage, then connect instantly."
+---
+
+Launching a GPU instance on GPU Cloud takes just a few clicks. Whether you need a single A100 for a training run or a fleet of H100s for distributed inference, the console walks you through every configuration option — GPU type, region, pre-built software image, and storage — before showing you an estimated cost so there are no surprises on your invoice.
+
+<Note>
+  **Screenshot placeholder:** *(Console → Instances → Launch Instance flow — full-page screenshot)*
+  The launch wizard shown here reflects the current console UI. If your screen looks different, check the [Release Notes](/faq) for recent UI updates.
+</Note>
+
+## Prerequisites
+
+Before you launch your first instance, make sure you have:
+
+- A GPU Cloud account with a verified payment method
+- An SSH key pair added to your account (see [Account Setup](/account-setup))
+- Sufficient account quota for the GPU type you want (request increases from the **Quota** page)
+
+## Launch an Instance
+
+<Steps>
+  <Step title="Navigate to Instances">
+    Log in to the [GPU Cloud console](https://console.gpucloud.com). In the left sidebar, click **Instances**. You'll see a list of all your current instances (or an empty state if this is your first time).
+  </Step>
+
+  <Step title="Open the Launch Wizard">
+    Click the **Launch Instance** button in the top-right corner of the Instances page. The launch wizard opens in a full-page view with configuration sections running top to bottom.
+  </Step>
+
+  <Step title="Choose a GPU Type">
+    Select the GPU that fits your workload from the hardware catalog. Each card shows the GPU model, VRAM, vCPUs, RAM, and on-demand hourly price.
+
+    | GPU | VRAM | Best For |
+    |-----|------|----------|
+    | NVIDIA H100 SXM | 80 GB | Large-scale LLM training, distributed workloads |
+    | NVIDIA A100 SXM | 80 GB | General ML training, fine-tuning |
+    | NVIDIA A100 PCIe | 40 GB | Inference, moderate training |
+    | NVIDIA RTX 4090 | 24 GB | Development, smaller models, rendering |
+
+    Click the card for your preferred GPU to select it.
+  </Step>
+
+  <Step title="Choose a Region">
+    Pick the data-center region closest to your team or your data storage to minimize latency and egress costs. Available regions are displayed as labeled cards (e.g., **US East**, **US West**, **EU Central**). Greyed-out regions indicate temporary capacity constraints — you can enable **Notify me when available** to receive an email alert.
+  </Step>
+
+  <Step title="Choose a Disk Image">
+    Select the operating-system and software image that will be flashed onto your instance's root disk at boot.
+
+    <Tip>
+      **Choosing the right image:** If you're doing deep learning with PyTorch, start with **PyTorch 2.1 / CUDA 12** — it ships with PyTorch, torchvision, torchaudio, and common scientific Python packages pre-installed, saving you 15–30 minutes of setup time. Pick **TensorFlow 2.14 / CUDA 12** for TensorFlow-first workflows. Choose **Ubuntu 22.04 (Bare)** only when you need a clean slate or want to install a framework version not available in the pre-built images.
+    </Tip>
+
+    | Image | Includes | Use When |
+    |-------|----------|----------|
+    | PyTorch 2.1 / CUDA 12 | PyTorch, torchvision, Python 3.10, CUDA 12, cuDNN | PyTorch training & inference |
+    | TensorFlow 2.14 / CUDA 12 | TensorFlow, Keras, Python 3.10, CUDA 12, cuDNN | TensorFlow training & inference |
+    | Ubuntu 22.04 (Bare) | Ubuntu 22.04 LTS, NVIDIA drivers only | Custom stacks, other frameworks |
+  </Step>
+
+  <Step title="Set Storage Size">
+    Use the storage slider or type a value directly to set the root disk size in GB. The minimum is **50 GB**; the maximum is **2 TB** for root disk. Storage is billed per GB/month (see [Billing & Costs](/guides/billing-and-costs)).
+
+    For datasets and checkpoints that outlive any single instance, attach a [persistent volume](/guides/persistent-storage) instead of enlarging the root disk.
+  </Step>
+
+  <Step title="Select Your SSH Key">
+    Choose an SSH key from the dropdown list of keys you've previously uploaded to your account. This key will be installed into `~/.ssh/authorized_keys` on the instance under the `ubuntu` user.
+
+    If you haven't added a key yet, click **Add SSH Key**, paste your public key, give it a name, and save — then select it from the dropdown.
+  </Step>
+
+  <Step title="Review Estimated Cost">
+    The right-hand summary panel updates in real time as you make selections. Review:
+
+    - **Hourly rate** — the per-second billed rate expressed hourly for the GPU + compute
+    - **Storage cost** — monthly cost for your configured root disk size
+    - **Estimated monthly total** — based on 730 hours/month (100% uptime)
+
+    Actual charges are per-second from the moment the instance enters the **Running** state until you stop or terminate it.
+  </Step>
+
+  <Step title="Launch the Instance">
+    Click the **Launch Instance** button at the bottom of the wizard. GPU Cloud provisions your instance immediately. The Instances list reloads and you'll see your new instance with a **Provisioning** status badge that transitions to **Running** within 60–90 seconds.
+
+    Once the status shows **Running**, copy the public IP address from the instance row and [connect via SSH](/guides/connect-ssh).
+  </Step>
+</Steps>
+
+## What Happens After Launch
+
+After clicking **Launch**, GPU Cloud:
+
+1. Allocates a physical GPU node in your chosen region
+2. Flashes your selected disk image to NVMe root storage
+3. Injects your SSH public key
+4. Assigns a public IPv4 address and configures the firewall to allow SSH (port 22)
+5. Boots the instance and marks it **Running**
+
+The entire process typically completes in under two minutes.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Connect via SSH" icon="terminal" href="/guides/connect-ssh">
+    Log in to your running instance from your local machine.
+  </Card>
+  <Card title="Run Jupyter Notebooks" icon="book-open" href="/guides/jupyter-notebooks">
+    Start a Jupyter server and access it in your browser.
+  </Card>
+  <Card title="Attach Persistent Storage" icon="hard-drive" href="/guides/persistent-storage">
+    Mount a volume that survives instance termination.
+  </Card>
+  <Card title="Run Docker Containers" icon="docker" href="/guides/docker-containers">
+    Pull and run GPU-accelerated containers on your instance.
+  </Card>
+</CardGroup>

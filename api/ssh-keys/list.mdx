@@ -1,0 +1,55 @@
+---
+title: "List All SSH Keys in Your GPU Cloud Account"
+sidebarTitle: "List SSH Keys"
+description: "Retrieve a list of all SSH keys associated with your GPU Cloud account, including their IDs, names, fingerprints, and creation timestamps."
+---
+
+SSH keys are the primary way you authenticate into GPU Cloud instances over SSH. This endpoint returns every key you have registered, giving you a full picture of which keys are available to attach when launching new instances. Each entry in the response includes the key's unique ID, human-readable name, and fingerprint — useful for auditing access or identifying keys to remove.
+
+## Endpoint
+
+```
+GET https://api.gpucloud.com/v1/ssh-keys
+```
+
+## Request
+
+This endpoint takes no request body or query parameters. Simply include your API key in the `Authorization` header.
+
+## Response Fields
+
+<ResponseField name="id" type="string">
+  The unique identifier for the SSH key (e.g., `key_xyz789`).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The human-readable label you assigned to this key.
+</ResponseField>
+
+<ResponseField name="fingerprint" type="string">
+  The SHA-256 fingerprint of the public key, useful for verifying key identity.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp indicating when the key was added to your account.
+</ResponseField>
+
+## Example Request
+
+```bash
+curl https://api.gpucloud.com/v1/ssh-keys \
+  -H "Authorization: Bearer <api-key>"
+```
+
+## Example Response
+
+```json
+[
+  {
+    "id": "key_xyz789",
+    "name": "my-macbook",
+    "fingerprint": "SHA256:abc123...",
+    "created_at": "2024-01-10T08:00:00Z"
+  }
+]
+```

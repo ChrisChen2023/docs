@@ -1,0 +1,237 @@
+---
+title: "Run GPU-Accelerated Docker Containers"
+sidebarTitle: "Docker Containers"
+description: "Pull and run GPU-accelerated Docker containers on GPU Cloud instances using the NVIDIA Container Toolkit, with examples for PyTorch, TensorFlow, and custom images."
+---
+
+Docker containers are an excellent way to package and reproduce GPU workloads — you get a consistent environment that runs identically whether you're prototyping on an RTX 4090 or scaling up on a cluster of H100s. GPU Cloud's pre-built disk images ship with both Docker and the NVIDIA Container Toolkit pre-installed, so you can pull a container and start a GPU-accelerated workload within seconds of your instance reaching the **Running** state.
+
+## What's Pre-Installed
+
+All GPU Cloud images (PyTorch, TensorFlow, and bare Ubuntu) include:
+
+- **Docker Engine** (latest stable) — verify with `docker --version`
+- **NVIDIA Container Toolkit** (`nvidia-container-toolkit`) — enables GPU passthrough into containers
+- **NVIDIA drivers** matched to the installed CUDA version
+
+You do not need to install or configure these yourself. If you ever need to verify the toolkit is working:
+
+```bash
+nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+```
+
+Both commands should show your GPU model and driver version without errors.
+
+## Pull an Image from Docker Hub
+
+Use `docker pull` to download any public image. For official NVIDIA deep-learning images, pull from [Docker Hub](https://hub.docker.com/r/nvidia/cuda) or [NGC](https://ngc.nvidia.com):
+
+```bash
+# Official CUDA base image
+docker pull nvidia/cuda:12.2.0-base-ubuntu22.04
+
+# Official PyTorch image from NGC
+docker pull nvcr.io/nvidia/pytorch:23.10-py3
+
+# Official TensorFlow image from NGC
+docker pull nvcr.io/nvidia/tensorflow:23.10-tf2-py3
+```
+
+<Tip>
+  NGC images are larger (several GB) but come with optimized libraries like cuBLAS, cuDNN, NCCL, and Apex pre-compiled for the specific CUDA version. They are the fastest way to get maximum GPU performance out of the box.
+</Tip>
+
+## Run a Container with GPU Access
+
+The key flag is `--gpus all`, which tells Docker to expose all available GPUs to the container via the NVIDIA Container Toolkit:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+```
+
+To expose only a specific GPU (e.g., the first one):
+
+```bash
+docker run --rm --gpus '"device=0"' nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+```
+
+## Example: Interactive PyTorch Container
+
+The following command starts an interactive PyTorch container with your current working directory mounted inside it:
+
+```bash
+docker run -it --rm \
+  --gpus all \
+  --shm-size=16g \
+  -v "$(pwd)":/workspace \
+  -w /workspace \
+  -p 8888:8888 \
+  nvcr.io/nvidia/pytorch:23.10-py3 \
+  bash
+```
+
+| Flag | Purpose |
+|------|---------|
+| `-it` | Interactive terminal |
+| `--rm` | Remove container on exit |
+| `--gpus all` | Expose all GPUs |
+| `--shm-size=16g` | Increase shared memory for DataLoader workers |
+| `-v "$(pwd)":/workspace` | Mount current directory into `/workspace` |
+| `-w /workspace` | Set working directory inside container |
+| `-p 8888:8888` | Forward Jupyter port (optional) |
+
+Once inside the container, verify GPU access:
+
+```python
+python -c "import torch; print(torch.cuda.get_device_name(0))"
+```
+
+## Example: Run a Training Script Non-Interactively
+
+To run a script and exit when it completes:
+
+```bash
+docker run --rm \
+  --gpus all \
+  --shm-size=16g \
+  -v "$(pwd)":/workspace \
+  -w /workspace \
+  nvcr.io/nvidia/pytorch:23.10-py3 \
+  python train.py --epochs 10 --batch-size 64
+```
+
+Output is streamed to your terminal in real time. Add `-d` to detach and run in the background:
+
+```bash
+docker run -d \
+  --gpus all \
+  --shm-size=16g \
+  --name training_run \
+  -v "$(pwd)":/workspace \
+  -w /workspace \
+  nvcr.io/nvidia/pytorch:23.10-py3 \
+  python train.py --epochs 10 --batch-size 64
+```
+
+## Managing the Container Lifecycle
+
+<CodeGroup>
+```bash List Running Containers
+docker ps
+```
+
+```bash List All Containers (including stopped)
+docker ps -a
+```
+
+```bash View Container Logs
+docker logs training_run
+
+# Follow logs in real time
+docker logs -f training_run
+```
+
+```bash Stop a Container
+docker stop training_run
+```
+
+```bash Remove a Stopped Container
+docker rm training_run
+```
+
+```bash Remove an Image
+docker rmi nvcr.io/nvidia/pytorch:23.10-py3
+```
+</CodeGroup>
+
+## Building a Custom Image
+
+When you have project-specific dependencies, build your own image on top of a GPU base. Create a `Dockerfile` in your project root:
+
+```dockerfile
+FROM nvcr.io/nvidia/pytorch:23.10-py3
+
+# Install additional Python packages
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Copy project code
+WORKDIR /app
+COPY . /app
+
+CMD ["python", "train.py"]
+```
+
+Build and run it:
+
+```bash
+# Build
+docker build -t my-training-image:v1 .
+
+# Run
+docker run --rm --gpus all my-training-image:v1
+```
+
+<Note>
+  Large images (with CUDA libraries, model weights, etc.) can consume significant disk space on your root volume. Use `docker system df` to check usage and `docker system prune` to remove unused images and containers. Consider [attaching a persistent volume](/guides/persistent-storage) for storing large model checkpoints and datasets outside the container.
+</Note>
+
+## Push Images to a Registry
+
+To reuse your custom image across instances or share it with teammates, push it to Docker Hub or a private registry:
+
+```bash
+# Log in to Docker Hub
+docker login
+
+# Tag your image
+docker tag my-training-image:v1 youruser/my-training-image:v1
+
+# Push
+docker push youruser/my-training-image:v1
+```
+
+On a new instance, pull and run it immediately:
+
+```bash
+docker run --rm --gpus all youruser/my-training-image:v1
+```
+
+## Using Docker Compose
+
+For multi-container setups (e.g., a training service + a metrics exporter), Docker Compose works normally on GPU Cloud instances. Add `deploy.resources.reservations.devices` to grant GPU access:
+
+```yaml
+services:
+  trainer:
+    image: nvcr.io/nvidia/pytorch:23.10-py3
+    command: python train.py
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+```
+
+Start the stack with:
+
+```bash
+docker compose up
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Persistent Storage" icon="hard-drive" href="/guides/persistent-storage">
+    Mount a persistent volume to store datasets and model checkpoints outside your containers.
+  </Card>
+  <Card title="Jupyter Notebooks" icon="book-open" href="/guides/jupyter-notebooks">
+    Run JupyterLab inside a container and access it via SSH tunnel.
+  </Card>
+</CardGroup>

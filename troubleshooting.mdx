@@ -1,0 +1,353 @@
+---
+title: "Troubleshooting GPU Cloud Issues"
+sidebarTitle: "Troubleshooting"
+description: "Diagnose and resolve the most common GPU Cloud issues, from SSH connection failures to CUDA errors and disk space problems."
+---
+
+Most issues you encounter on GPU Cloud have straightforward causes and quick fixes. This guide walks you through the most common problems — covering SSH access failures, instance provisioning delays, storage limits, CUDA configuration, and authentication errors — so you can get back to work fast. If a problem persists after following these steps, reach out to [GPU Cloud support](https://gpucloud.com/support).
+
+<AccordionGroup>
+
+  <Accordion title="SSH: Connection Refused" icon="circle-xmark">
+
+    **Symptom:** Running `ssh` or `gpucloud instance ssh <id>` returns `Connection refused` or times out immediately.
+
+    SSH connection failures are almost always caused by one of four things: the instance isn't fully running yet, port 22 is blocked, your local key has incorrect permissions, or you're using the wrong username.
+
+    <Steps>
+      <Step title="Confirm the instance is running">
+        Check the instance status — SSH is only available once the instance reaches `running` state.
+
+        ```bash
+        gpucloud instance get <id>
+        ```
+
+        If the status is `pending` or `starting`, wait 60–90 seconds and try again. Instances typically become reachable within two minutes of entering `running` state as the SSH daemon finishes initializing.
+      </Step>
+      <Step title="Verify port 22 is open">
+        Confirm that your instance's firewall rules permit inbound TCP traffic on port 22. Check your account's security group settings in the [GPU Cloud dashboard](https://console.gpucloud.com/security-groups) and ensure a rule exists allowing `0.0.0.0/0` (or your specific IP) on port 22.
+
+        You can test connectivity directly with:
+
+        ```bash
+        nc -zv <instance-ip> 22
+        ```
+
+        If this fails, the port is blocked and you need to update your security group.
+      </Step>
+      <Step title="Fix SSH key file permissions">
+        SSH clients reject private keys that have overly permissive file permissions. Your key file must be readable only by your user.
+
+        ```bash
+        chmod 600 ~/.ssh/id_rsa
+        chmod 700 ~/.ssh
+        ```
+
+        On macOS and Linux, also ensure your `~/.ssh` directory is not world-writable.
+      </Step>
+      <Step title="Use the correct login username">
+        The default username depends on the disk image. For Ubuntu-based images (including all PyTorch, TensorFlow, and CUDA images) the default user is `ubuntu`. Try connecting explicitly:
+
+        ```bash
+        ssh -i ~/.ssh/id_rsa ubuntu@<instance-ip>
+        ```
+
+        If you used a custom image, the username may differ — check the image documentation.
+      </Step>
+    </Steps>
+
+    <Tip>
+      Add `-v` to your SSH command to enable verbose logging, which shows exactly where the handshake fails and makes diagnosing the root cause much faster.
+    </Tip>
+
+  </Accordion>
+
+  <Accordion title="Instance Stuck in Pending" icon="clock">
+
+    **Symptom:** Your instance remains in `pending` status for longer than expected and never transitions to `running`.
+
+    A brief pending period is normal — instances typically take 60–90 seconds to provision, boot, and initialize. Occasionally, a resource allocation delay in the region can extend this slightly.
+
+    <Steps>
+      <Step title="Wait two minutes">
+        Most pending states resolve on their own within two minutes. Run a quick poll to watch the status:
+
+        ```bash
+        watch -n 10 gpucloud instance get <id>
+        ```
+
+        If the instance transitions to `running` during this time, no further action is needed.
+      </Step>
+      <Step title="Check for region capacity warnings">
+        Some GPU types have limited regional availability. Log in to the [GPU Cloud dashboard](https://console.gpucloud.com) and check the status banner for capacity notices in your region. If demand is high, consider switching to an alternate region:
+
+        ```bash
+        gpucloud instance create --gpu h100 --region us-west-2 --image pytorch-2.1 --disk 100
+        ```
+      </Step>
+      <Step title="Terminate and re-provision if stuck beyond five minutes">
+        If the instance has been pending for more than five minutes with no status change, terminate it and create a new one:
+
+        ```bash
+        gpucloud instance terminate <id> --force
+        gpucloud instance create --gpu h100 --region us-east-1 --image pytorch-2.1 --disk 100
+        ```
+      </Step>
+      <Step title="Contact support">
+        If re-provisioning doesn't resolve the issue, [open a support ticket](https://gpucloud.com/support) with your instance ID and the time it entered `pending` state. Include the output of `gpucloud instance get <id>` for faster diagnosis.
+      </Step>
+    </Steps>
+
+  </Accordion>
+
+  <Accordion title="Out of Disk Space" icon="hard-drive">
+
+    **Symptom:** Training jobs crash unexpectedly, file writes fail, or you receive `No space left on device` errors.
+
+    GPU workloads — especially those saving model checkpoints, caching datasets, or generating large log files — can exhaust root disk space quickly. Use a persistent volume for large datasets and checkpoints to avoid this.
+
+    <Steps>
+      <Step title="Check current disk usage">
+        SSH into your instance and inspect disk usage:
+
+        ```bash
+        df -h
+        ```
+
+        ```
+        Filesystem      Size  Used Avail Use% Mounted on
+        /dev/vda1        98G   94G  4.0G  96% /
+        tmpfs           7.8G     0  7.8G   0% /dev/shm
+        ```
+
+        Identify which directories are consuming the most space:
+
+        ```bash
+        du -sh /* 2>/dev/null | sort -rh | head -20
+        ```
+      </Step>
+      <Step title="Clean up temporary files and caches">
+        Remove pip caches, temporary model downloads, and unused Docker images:
+
+        ```bash
+        # Clear pip cache
+        pip cache purge
+
+        # Remove Hugging Face model cache
+        rm -rf ~/.cache/huggingface/hub
+
+        # Remove unused conda packages
+        conda clean --all -y
+
+        # Remove large log files
+        find /var/log -name "*.log" -size +100M -delete
+        ```
+      </Step>
+      <Step title="Attach a persistent volume for large data">
+        Move large datasets and checkpoints to a persistent volume so they survive instance termination and don't fill your root disk.
+
+        ```bash
+        # Create a volume
+        gpucloud volume create --name mydata --size 500 --region us-east-1
+
+        # Attach it to your instance
+        gpucloud volume attach <volume-id> <instance-id>
+
+        # Inside the instance, mount it
+        sudo mkfs.ext4 /dev/vdb   # Only on first use — this erases existing data
+        sudo mount /dev/vdb /mnt/data
+        sudo chown ubuntu:ubuntu /mnt/data
+        ```
+
+        <Warning>
+          Only run `mkfs.ext4` on a brand-new volume. Running it on an existing volume with data will erase everything on it.
+        </Warning>
+      </Step>
+    </Steps>
+
+  </Accordion>
+
+  <Accordion title="CUDA Not Found" icon="microchip">
+
+    **Symptom:** Your code throws `CUDA not available`, `nvidia-smi: command not found`, or PyTorch reports `torch.cuda.is_available()` returns `False`.
+
+    This usually means either the wrong disk image was used at instance creation, the NVIDIA driver failed to initialize, or your framework version doesn't match the installed CUDA version.
+
+    <Steps>
+      <Step title="Verify the GPU driver is loaded">
+        Run `nvidia-smi` to check whether the NVIDIA kernel module is loaded and the GPU is visible to the OS:
+
+        ```bash
+        nvidia-smi
+        ```
+
+        Expected output:
+
+        ```
+        +-----------------------------------------------------------------------------+
+        | NVIDIA-SMI 535.104.12   Driver Version: 535.104.12   CUDA Version: 12.2    |
+        |-------------------------------+----------------------+----------------------+
+        | GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+        |   0  NVIDIA H100 80GB HBM2e  |   Off  |
+        ```
+
+        If `nvidia-smi` is not found or shows no GPUs, the driver is not installed — you likely used a base OS image instead of a GPU-optimized image.
+      </Step>
+      <Step title="Confirm you're using a GPU disk image">
+        GPU drivers and CUDA are pre-installed only on GPU-optimized disk images (`pytorch-*`, `tensorflow-*`, `cuda-*`). If you chose a plain Ubuntu image, drivers won't be present.
+
+        Check which image your instance is running:
+
+        ```bash
+        gpucloud instance get <id>
+        ```
+
+        If the image is not a GPU-optimized one, terminate the instance and recreate it with the correct image:
+
+        ```bash
+        gpucloud instance create \
+          --gpu h100 \
+          --region us-east-1 \
+          --image pytorch-2.1 \
+          --disk 100
+        ```
+      </Step>
+      <Step title="Check the CUDA and PyTorch version compatibility">
+        If `nvidia-smi` works but `torch.cuda.is_available()` still returns `False`, there may be a version mismatch between PyTorch and the installed CUDA toolkit.
+
+        ```python
+        import torch
+        print(torch.__version__)        # e.g. 2.1.0+cu121
+        print(torch.version.cuda)       # e.g. 12.1
+        ```
+
+        ```bash
+        nvcc --version                  # CUDA compiler version
+        ```
+
+        If they don't align, reinstall PyTorch with the correct CUDA build:
+
+        ```bash
+        pip install torch --index-url https://download.pytorch.org/whl/cu121
+        ```
+      </Step>
+    </Steps>
+
+  </Accordion>
+
+  <Accordion title="Jupyter Notebook Not Accessible" icon="book-open">
+
+    **Symptom:** You started Jupyter on your instance but can't reach it in your browser. The URL `http://localhost:8888` shows nothing.
+
+    Jupyter runs on the instance, not on your local machine. To access it in your browser, you need to forward the port over SSH.
+
+    <Steps>
+      <Step title="Set up SSH port forwarding">
+        Open a local tunnel that maps your machine's port 8888 to the instance's port 8888:
+
+        ```bash
+        ssh -L 8888:localhost:8888 ubuntu@<instance-ip>
+        ```
+
+        Or using the CLI:
+
+        ```bash
+        gpucloud instance ssh <id> -- -L 8888:localhost:8888
+        ```
+
+        Keep this terminal open — the tunnel stays active as long as the SSH session is alive. Then open `http://localhost:8888` in your browser.
+      </Step>
+      <Step title="Confirm Jupyter is running on the instance">
+        SSH into the instance and check whether the Jupyter process is active:
+
+        ```bash
+        pgrep -a jupyter
+        ```
+
+        If nothing is returned, Jupyter isn't running. Start it:
+
+        ```bash
+        jupyter notebook --no-browser --port 8888
+        ```
+
+        Or use JupyterLab:
+
+        ```bash
+        jupyter lab --no-browser --port 8888 --ip 127.0.0.1
+        ```
+      </Step>
+      <Step title="Retrieve the access token">
+        If Jupyter started but your browser asks for a password or token, list running servers to get the token URL:
+
+        ```bash
+        jupyter server list
+        ```
+
+        ```
+        Currently running servers:
+        http://localhost:8888/?token=abc123def456... :: /home/ubuntu
+        ```
+
+        Copy the full URL including the token into your browser.
+      </Step>
+    </Steps>
+
+    <Tip>
+      For persistent Jupyter access without re-running port forwarding every session, consider running Jupyter as a `systemd` service so it starts automatically on boot.
+    </Tip>
+
+  </Accordion>
+
+  <Accordion title="API Authentication Errors" icon="lock">
+
+    **Symptom:** CLI commands or API calls return `401 Unauthorized` or `403 Forbidden` errors.
+
+    Authentication errors mean the API key or session token being sent is invalid, expired, or lacks the necessary permissions.
+
+    <Steps>
+      <Step title="Verify your API key is set correctly">
+        Check which credentials the CLI is using:
+
+        ```bash
+        gpucloud config list
+        ```
+
+        If `GPUCLOUD_API_KEY` is set as an environment variable, it takes precedence over the stored config. Confirm the variable is correct:
+
+        ```bash
+        echo $GPUCLOUD_API_KEY
+        ```
+
+        Re-apply the key if needed:
+
+        ```bash
+        gpucloud auth set-key <YOUR_API_KEY>
+        ```
+      </Step>
+      <Step title="Check key expiry in the dashboard">
+        Log into the [GPU Cloud dashboard](https://console.gpucloud.com/settings/api-keys) and verify that your API key:
+        - Has not expired
+        - Has not been revoked
+        - Has the required permission scopes for the operations you're performing
+
+        If the key is expired or revoked, generate a new one and update your CLI config.
+      </Step>
+      <Step title="Re-authenticate interactively">
+        If you use browser-based login, your session token may have expired. Re-authenticate to get a fresh token:
+
+        ```bash
+        gpucloud auth login
+        ```
+      </Step>
+      <Step title="Check team and role permissions">
+        If you're operating within a team workspace, your role may not include permission to perform the action you're attempting. Ask a workspace admin to review your role in [team settings](https://console.gpucloud.com/settings/team). For example, the `Viewer` role cannot create or terminate instances.
+      </Step>
+    </Steps>
+
+  </Accordion>
+
+</AccordionGroup>
+
+---
+
+Still stuck? [Open a support ticket](https://gpucloud.com/support) and include your instance ID, the exact error message, and the output of `gpucloud instance get <id>` for the fastest resolution.
