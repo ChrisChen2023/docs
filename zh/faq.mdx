@@ -1,0 +1,196 @@
+---
+title: "GPU Cloud 常见问题：计费、GPU、存储与支持"
+sidebarTitle: "常见问题"
+description: "关于 GPU Cloud 的常见问题解答：可用 GPU 类型、计费、数据持久化、磁盘镜像、区域，以及如何获得支持。"
+---
+
+在下方查找关于 GPU Cloud 最常见问题的快速答案。如果没有找到你需要的内容，请访问我们的[文档中心](/zh/)或[联系支持](https://gpucloud.com/support)。
+
+<AccordionGroup>
+
+  <Accordion title="有哪些 GPU 类型可用？" icon="microchip">
+    GPU Cloud 提供一系列 NVIDIA GPU，以适应不同类型的工作负载和预算：
+
+    | GPU | 显存 | 最适合 |
+    |---|---|---|
+    | NVIDIA H100 SXM5 | 80 GB HBM3 | 大规模 LLM 训练、分布式工作负载 |
+    | NVIDIA A100 SXM4 | 80 GB HBM2e | 通用训练和微调 |
+    | NVIDIA A100 PCIe | 40 GB HBM2 | 成本高效的训练和推理 |
+    | NVIDIA RTX 4090 | 24 GB GDDR6X | 推理、小规模微调、开发 |
+    | NVIDIA L40S | 48 GB GDDR6 | 渲染、混合推理/训练工作负载 |
+
+    可用性因区域而异。运行以下命令可列出目标区域当前可用的 GPU 类型：
+
+    ```bash
+    gpucloud instance create --help
+    ```
+
+    我们会定期添加新的 GPU 类型 —— 请查看 [GPU Cloud 定价页面](https://gpucloud.com/pricing)获取最新目录。
+  </Accordion>
+
+  <Accordion title="计费是如何计算的？" icon="credit-card">
+    GPU Cloud 对按需实例采用按秒计费。从实例进入 `running` 状态到被终止的这段时间会向你收费。已停止的实例不再收取计算费用，但挂载在其上的持久化卷仍会继续产生存储费用。
+
+    **关键计费事实：**
+    - 计算按秒计费，最低计费一分钟。
+    - 存储卷按每 GB 每小时计费，与实例状态无关。
+    - 出站带宽在每月免费额度（含 100 GB）之外按每 GB 计费。
+    - 预留实例（1 个月或 12 个月期限）相比按需价格提供显著折扣 —— 请参阅下方的[预留实例](#can-i-reserve-instances-for-a-discount)。
+
+    你可以在仪表板的[计费部分](https://console.gpucloud.com/billing)查看实时费用明细并下载账单。
+
+    <Tip>
+      在计费设置中设置支出提醒，当你的月度使用量超过自定义阈值时可以收到邮件通知。
+    </Tip>
+  </Accordion>
+
+  <Accordion title="停止实例时我的数据会保留吗？" icon="floppy-disk">
+    这取决于你如何停止实例：
+
+    - **已停止（未终止）：** 根磁盘会被保留，你的数据保持完好。你可以重新启动实例并从上次的地方继续。计算费用停止，但你会继续为根磁盘存储付费。
+    - **已终止：** 根磁盘会被永久删除，其上的所有数据都会丢失。此操作不可撤销。
+
+    要在实例生命周期变化（包括终止）中安全地保留大型数据集和模型检查点，请将它们存储在[持久化卷](/zh/cli/commands)上。持久化卷独立于任何实例，可以在终止后继续存在，并可以随时重新挂载到新实例上。
+
+    <Warning>
+      在终止实例前，请始终将关键数据转移到持久化卷。已终止实例的根磁盘上的数据无法恢复。
+    </Warning>
+  </Accordion>
+
+  <Accordion title="我可以升级正在运行的实例吗？" icon="arrow-up">
+    GPU Cloud 目前不支持原地实例升级（在实例运行或停止时更改 GPU 类型、CPU 或 RAM）。要迁移到更强大的 GPU，你需要：
+
+    1. 将工作保存到持久化卷中。
+    2. 终止现有实例。
+    3. 创建一个具有目标 GPU 类型的新实例并挂载你的卷。
+
+    ```bash
+    # Create a new, more powerful instance
+    gpucloud instance create --gpu h100 --region us-east-1 --image pytorch-2.1 --disk 100
+
+    # Re-attach your existing data volume
+    gpucloud volume attach <volume-id> <new-instance-id>
+    ```
+
+    我们正在积极开发在线扩容和实例升级功能 —— 订阅[更新日志](https://gpucloud.com/changelog)以在其发布时获得通知。
+  </Accordion>
+
+  <Accordion title="有哪些磁盘镜像可用？" icon="circle-dot">
+    GPU Cloud 提供预构建的、经过 GPU 优化的磁盘镜像，让你无需手动安装驱动或框架即可立即开始工作。可用镜像包括：
+
+    | 镜像名称 | 框架 | CUDA 版本 | Python |
+    |---|---|---|---|
+    | `pytorch-2.1` | PyTorch 2.1 | 12.1 | 3.10 |
+    | `pytorch-2.0` | PyTorch 2.0 | 11.8 | 3.10 |
+    | `tensorflow-2.14` | TensorFlow 2.14 | 12.2 | 3.11 |
+    | `tensorflow-2.12` | TensorFlow 2.12 | 11.8 | 3.10 |
+    | `cuda-12.2` | 仅 CUDA Toolkit | 12.2 | 3.10 |
+    | `cuda-11.8` | 仅 CUDA Toolkit | 11.8 | 3.10 |
+    | `ubuntu-22.04` | 基础操作系统（无 GPU 驱动） | — | 3.10 |
+
+    所有 GPU 镜像都包含 NVIDIA 驱动、`nvidia-smi`、`nvcc`、cuDNN 和 `conda`。新框架版本会在上游发布后几天内推出。运行 `gpucloud instance create --help` 查看最新列表。
+  </Accordion>
+
+  <Accordion title="我如何在实例和本地之间传输数据？" icon="arrow-right-arrow-left">
+    在本地机器和 GPU Cloud 实例之间移动数据有几种方法：
+
+    **SCP（中小型文件）：**
+    ```bash
+    # Upload a file
+    scp -i ~/.ssh/id_rsa ./dataset.tar.gz ubuntu@<instance-ip>:~/
+
+    # Download a file
+    scp -i ~/.ssh/id_rsa ubuntu@<instance-ip>:~/model.pt ./
+    ```
+
+    **rsync（大型目录，支持断点续传）：**
+    ```bash
+    # Sync a local directory to the instance
+    rsync -avz --progress ./data/ ubuntu@<instance-ip>:~/data/
+
+    # Sync from instance back to local
+    rsync -avz --progress ubuntu@<instance-ip>:~/checkpoints/ ./checkpoints/
+    ```
+
+    **云存储（推荐用于大型数据集）：**
+    在实例上安装 AWS CLI 或 `rclone`，从 S3、Google Cloud Storage 或任何兼容 S3 的存储拉取数据：
+
+    ```bash
+    aws s3 cp s3://my-bucket/dataset.tar.gz .
+    ```
+
+    **持久化卷：** 对于在多次训练运行或多个实例间重复使用的数据集，将它们存储在持久化卷上。将卷挂载到新实例后，所有数据立即可用 —— 无需传输。
+  </Accordion>
+
+  <Accordion title="有免费套餐或试用吗？" icon="gift">
+    新账户在注册时会获得**价值 50 美元的免费额度**，有效期为 30 天。额度会自动应用于任何按需实例使用，是在正式投入前评估平台的好机会。
+
+    要领取你的额度：
+    1. [创建账户](https://console.gpucloud.com/signup)。
+    2. 验证你的邮箱地址。
+    3. 额度会自动应用 —— 无需促销代码。
+
+    我们没有针对计算的永久免费套餐，但免费额度可以通过推荐计划和创业公司赞助进行续期。访问[额度页面](https://gpucloud.com/credits)查看当前促销。
+
+    <Note>
+      免费额度不能用于预留实例承诺，也不能追溯应用到过往的计费周期。
+    </Note>
+  </Accordion>
+
+  <Accordion title="我可以预留实例以获得折扣吗？" icon="tag">
+    可以。对于能够承诺固定期限的客户，GPU Cloud 提供预留实例定价。对于持续性工作负载，预留实例价格明显低于按需价格。
+
+    | 期限 | 相比按需的折扣 |
+    |---|---|
+    | 1 个月 | 最高 20% 折扣 |
+    | 12 个月 | 最高 45% 折扣 |
+
+    预留实例需要预付款，无论实例是否运行都按预留价格计费。要购买预留，请前往仪表板的[预留实例](https://console.gpucloud.com/billing/reserved)部分，选择你的 GPU 类型、区域和期限并完成结账。
+
+    <Tip>
+      预留实例最适合长期运行的训练任务或持久化的推理服务。对于间歇性或探索性的工作负载，按需定价通常更经济。
+    </Tip>
+  </Accordion>
+
+  <Accordion title="有哪些区域可用？" icon="globe">
+    GPU Cloud 目前在以下区域运营：
+
+    | 区域代码 | 位置 |
+    |---|---|
+    | `us-east-1` | 美国北弗吉尼亚 |
+    | `us-west-2` | 美国俄勒冈 |
+    | `eu-west-2` | 英国伦敦 |
+    | `eu-central-1` | 德国法兰克福 |
+    | `ap-southeast-1` | 新加坡 |
+    | `ap-northeast-1` | 日本东京 |
+
+    并非所有 GPU 类型在每个区域都可用。在配置前请使用仪表板或 CLI 检查可用性。我们会定期添加新区域 —— 关注[更新日志](https://gpucloud.com/changelog)获取公告。
+
+    要为所有 CLI 命令设置默认区域：
+
+    ```bash
+    gpucloud config set region us-east-1
+    ```
+  </Accordion>
+
+  <Accordion title="如何获取支持？" icon="headset">
+    GPU Cloud 根据你的套餐提供多种支持渠道：
+
+    | 渠道 | 可用性 | 联系方式 |
+    |---|---|---|
+    | 文档 | 始终可用 | [docs.gpucloud.com](https://docs.gpucloud.com) |
+    | 社区论坛 | 始终可用 | [community.gpucloud.com](https://community.gpucloud.com) |
+    | 邮件支持 | 工作时间（周一至周五） | [support@gpucloud.com](mailto:support@gpucloud.com) |
+    | 在线聊天 | 工作时间 | 仪表板右下角小组件 |
+    | 优先支持（Pro 套餐） | 7×24 小时，4 小时 SLA | [console.gpucloud.com/support](https://console.gpucloud.com/support) |
+
+    在提交工单时，请包含以下内容以获得最快响应：
+    - 你的**实例 ID**（例如 `i-a1b2c3d4`）
+    - 你看到的**错误消息**或异常行为
+    - 如果与实例相关，请附上 `gpucloud instance get <id>` 的输出
+    - 你已经尝试过的步骤
+
+    对于计费争议，请直接联系 [billing@gpucloud.com](mailto:billing@gpucloud.com)。
+  </Accordion>
+
+</AccordionGroup>

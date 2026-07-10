@@ -1,0 +1,353 @@
+---
+title: "GPU Cloud CLI 与实例常见问题排查"
+sidebarTitle: "问题排查"
+description: "针对最常见的 GPU Cloud 问题的分步解决方案：SSH 故障、卡住的实例、磁盘空间错误、CUDA 问题和认证错误。"
+---
+
+你在 GPU Cloud 上遇到的大多数问题都有简单直接的原因和快速的解决方案。本指南将引导你解决最常见的问题 —— 涵盖 SSH 访问失败、实例配置延迟、存储限制、CUDA 配置和认证错误 —— 让你能尽快回到工作中。如果按照这些步骤后问题仍然存在，请联系 [GPU Cloud 支持](https://gpucloud.com/support)。
+
+<AccordionGroup>
+
+  <Accordion title="SSH：Connection Refused" icon="circle-xmark">
+
+    **症状：** 运行 `ssh` 或 `gpucloud instance ssh <id>` 返回 `Connection refused` 或立即超时。
+
+    SSH 连接失败几乎总是由以下四种情况之一引起的：实例尚未完全运行、端口 22 被阻塞、本地密钥权限不正确，或使用了错误的用户名。
+
+    <Steps>
+      <Step title="确认实例正在运行">
+        检查实例状态 —— 只有当实例达到 `running` 状态时，SSH 才可用。
+
+        ```bash
+        gpucloud instance get <id>
+        ```
+
+        如果状态是 `pending` 或 `starting`，等待 60–90 秒后再试。实例通常会在进入 `running` 状态后两分钟内变得可达，因为 SSH 守护进程需要完成初始化。
+      </Step>
+      <Step title="验证端口 22 是否开放">
+        确认你的实例防火墙规则允许端口 22 上的入站 TCP 流量。检查 [GPU Cloud 仪表板](https://console.gpucloud.com/security-groups)中你的账户安全组设置，并确保存在一条允许 `0.0.0.0/0`（或你的特定 IP）在端口 22 上的规则。
+
+        你可以直接测试连接：
+
+        ```bash
+        nc -zv <instance-ip> 22
+        ```
+
+        如果失败，说明端口被阻塞，需要更新你的安全组。
+      </Step>
+      <Step title="修复 SSH 密钥文件权限">
+        SSH 客户端会拒绝权限过于宽松的私钥。你的密钥文件必须只能由你本人读取。
+
+        ```bash
+        chmod 600 ~/.ssh/id_rsa
+        chmod 700 ~/.ssh
+        ```
+
+        在 macOS 和 Linux 上，还要确保你的 `~/.ssh` 目录不是全局可写的。
+      </Step>
+      <Step title="使用正确的登录用户名">
+        默认用户名取决于磁盘镜像。对于基于 Ubuntu 的镜像（包括所有 PyTorch、TensorFlow 和 CUDA 镜像），默认用户是 `ubuntu`。尝试显式连接：
+
+        ```bash
+        ssh -i ~/.ssh/id_rsa ubuntu@<instance-ip>
+        ```
+
+        如果你使用的是自定义镜像，用户名可能有所不同 —— 请查阅镜像文档。
+      </Step>
+    </Steps>
+
+    <Tip>
+      在 SSH 命令中添加 `-v` 以启用详细日志，它会准确显示握手失败的位置，能大大加快根因诊断速度。
+    </Tip>
+
+  </Accordion>
+
+  <Accordion title="实例卡在 Pending 状态" icon="clock">
+
+    **症状：** 你的实例长时间处于 `pending` 状态且从未过渡到 `running`。
+
+    短暂的 pending 状态是正常的 —— 实例通常需要 60–90 秒来完成配置、启动和初始化。偶尔，区域中的资源分配延迟可能会略微延长这一时间。
+
+    <Steps>
+      <Step title="等待两分钟">
+        大多数 pending 状态会在两分钟内自行解决。运行一个快速轮询来查看状态：
+
+        ```bash
+        watch -n 10 gpucloud instance get <id>
+        ```
+
+        如果实例在这段时间内过渡到 `running`，则无需进一步操作。
+      </Step>
+      <Step title="检查区域容量警告">
+        某些 GPU 类型在区域内的可用性有限。登录 [GPU Cloud 仪表板](https://console.gpucloud.com)并检查状态横幅上关于你所在区域容量的通知。如果需求很高，考虑切换到备用区域：
+
+        ```bash
+        gpucloud instance create --gpu h100 --region us-west-2 --image pytorch-2.1 --disk 100
+        ```
+      </Step>
+      <Step title="超过五分钟仍卡住时终止并重新配置">
+        如果实例在超过五分钟仍处于 pending 状态且没有变化，请终止它并创建一个新的：
+
+        ```bash
+        gpucloud instance terminate <id> --force
+        gpucloud instance create --gpu h100 --region us-east-1 --image pytorch-2.1 --disk 100
+        ```
+      </Step>
+      <Step title="联系支持">
+        如果重新配置无法解决问题，请[提交支持工单](https://gpucloud.com/support)，附上你的实例 ID 以及进入 `pending` 状态的时间。附上 `gpucloud instance get <id>` 的输出以加快诊断。
+      </Step>
+    </Steps>
+
+  </Accordion>
+
+  <Accordion title="磁盘空间不足" icon="hard-drive">
+
+    **症状：** 训练任务意外崩溃、文件写入失败，或收到 `No space left on device` 错误。
+
+    GPU 工作负载 —— 特别是保存模型检查点、缓存数据集或生成大型日志文件的任务 —— 会迅速耗尽根磁盘空间。为大数据集和检查点使用持久化卷可以避免这一问题。
+
+    <Steps>
+      <Step title="检查当前磁盘使用情况">
+        SSH 进入你的实例并查看磁盘使用情况：
+
+        ```bash
+        df -h
+        ```
+
+        ```
+        Filesystem      Size  Used Avail Use% Mounted on
+        /dev/vda1        98G   94G  4.0G  96% /
+        tmpfs           7.8G     0  7.8G   0% /dev/shm
+        ```
+
+        找出占用最多空间的目录：
+
+        ```bash
+        du -sh /* 2>/dev/null | sort -rh | head -20
+        ```
+      </Step>
+      <Step title="清理临时文件和缓存">
+        移除 pip 缓存、临时模型下载和未使用的 Docker 镜像：
+
+        ```bash
+        # Clear pip cache
+        pip cache purge
+
+        # Remove Hugging Face model cache
+        rm -rf ~/.cache/huggingface/hub
+
+        # Remove unused conda packages
+        conda clean --all -y
+
+        # Remove large log files
+        find /var/log -name "*.log" -size +100M -delete
+        ```
+      </Step>
+      <Step title="挂载持久化卷用于存放大数据">
+        将大型数据集和检查点移到持久化卷上，这样它们在实例终止时仍能保留，并且不会占满根磁盘。
+
+        ```bash
+        # Create a volume
+        gpucloud volume create --name mydata --size 500 --region us-east-1
+
+        # Attach it to your instance
+        gpucloud volume attach <volume-id> <instance-id>
+
+        # Inside the instance, mount it
+        sudo mkfs.ext4 /dev/vdb   # Only on first use — this erases existing data
+        sudo mount /dev/vdb /mnt/data
+        sudo chown ubuntu:ubuntu /mnt/data
+        ```
+
+        <Warning>
+          只能在全新的卷上运行 `mkfs.ext4`。在已有数据的卷上运行会清除卷上的所有内容。
+        </Warning>
+      </Step>
+    </Steps>
+
+  </Accordion>
+
+  <Accordion title="找不到 CUDA" icon="microchip">
+
+    **症状：** 你的代码抛出 `CUDA not available`、`nvidia-smi: command not found`，或 PyTorch 报告 `torch.cuda.is_available()` 返回 `False`。
+
+    这通常意味着实例创建时使用了错误的磁盘镜像、NVIDIA 驱动初始化失败，或你的框架版本与已安装的 CUDA 版本不匹配。
+
+    <Steps>
+      <Step title="验证 GPU 驱动是否已加载">
+        运行 `nvidia-smi` 检查 NVIDIA 内核模块是否已加载，以及操作系统是否能识别 GPU：
+
+        ```bash
+        nvidia-smi
+        ```
+
+        预期输出：
+
+        ```
+        +-----------------------------------------------------------------------------+
+        | NVIDIA-SMI 535.104.12   Driver Version: 535.104.12   CUDA Version: 12.2    |
+        |-------------------------------+----------------------+----------------------+
+        | GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+        |   0  NVIDIA H100 80GB HBM2e  |   Off  |
+        ```
+
+        如果找不到 `nvidia-smi` 或未显示 GPU，则说明驱动未安装 —— 你可能使用了基础操作系统镜像而不是 GPU 优化镜像。
+      </Step>
+      <Step title="确认你使用的是 GPU 磁盘镜像">
+        GPU 驱动和 CUDA 仅在 GPU 优化磁盘镜像（`pytorch-*`、`tensorflow-*`、`cuda-*`）上预装。如果你选择了普通的 Ubuntu 镜像，则不会预装驱动。
+
+        检查你的实例正在使用哪个镜像：
+
+        ```bash
+        gpucloud instance get <id>
+        ```
+
+        如果镜像不是 GPU 优化的，请终止实例并使用正确的镜像重新创建：
+
+        ```bash
+        gpucloud instance create \
+          --gpu h100 \
+          --region us-east-1 \
+          --image pytorch-2.1 \
+          --disk 100
+        ```
+      </Step>
+      <Step title="检查 CUDA 与 PyTorch 版本兼容性">
+        如果 `nvidia-smi` 正常工作但 `torch.cuda.is_available()` 仍返回 `False`，可能是 PyTorch 与已安装的 CUDA 工具包之间的版本不匹配。
+
+        ```python
+        import torch
+        print(torch.__version__)        # e.g. 2.1.0+cu121
+        print(torch.version.cuda)       # e.g. 12.1
+        ```
+
+        ```bash
+        nvcc --version                  # CUDA compiler version
+        ```
+
+        如果不一致，请使用正确的 CUDA 构建重新安装 PyTorch：
+
+        ```bash
+        pip install torch --index-url https://download.pytorch.org/whl/cu121
+        ```
+      </Step>
+    </Steps>
+
+  </Accordion>
+
+  <Accordion title="无法访问 Jupyter Notebook" icon="book-open">
+
+    **症状：** 你在实例上启动了 Jupyter，但无法在浏览器中访问。URL `http://localhost:8888` 什么也没显示。
+
+    Jupyter 运行在实例上，而不是本地机器上。要在浏览器中访问它，你需要通过 SSH 转发端口。
+
+    <Steps>
+      <Step title="设置 SSH 端口转发">
+        打开一个本地隧道，将你机器的 8888 端口映射到实例的 8888 端口：
+
+        ```bash
+        ssh -L 8888:localhost:8888 ubuntu@<instance-ip>
+        ```
+
+        或使用 CLI：
+
+        ```bash
+        gpucloud instance ssh <id> -- -L 8888:localhost:8888
+        ```
+
+        保持此终端打开 —— 只要 SSH 会话保持连接，隧道就保持活跃。然后在浏览器中打开 `http://localhost:8888`。
+      </Step>
+      <Step title="确认 Jupyter 正在实例上运行">
+        SSH 进入实例并检查 Jupyter 进程是否活跃：
+
+        ```bash
+        pgrep -a jupyter
+        ```
+
+        如果没有返回内容，说明 Jupyter 未运行。启动它：
+
+        ```bash
+        jupyter notebook --no-browser --port 8888
+        ```
+
+        或使用 JupyterLab：
+
+        ```bash
+        jupyter lab --no-browser --port 8888 --ip 127.0.0.1
+        ```
+      </Step>
+      <Step title="获取访问令牌">
+        如果 Jupyter 已启动但浏览器提示输入密码或令牌，请列出正在运行的服务器以获取令牌 URL：
+
+        ```bash
+        jupyter server list
+        ```
+
+        ```
+        Currently running servers:
+        http://localhost:8888/?token=abc123def456... :: /home/ubuntu
+        ```
+
+        将包含令牌的完整 URL 复制到浏览器中。
+      </Step>
+    </Steps>
+
+    <Tip>
+      如需持久访问 Jupyter 而不必每次会话都重新执行端口转发，可以考虑将 Jupyter 作为 `systemd` 服务运行，使其在启动时自动启动。
+    </Tip>
+
+  </Accordion>
+
+  <Accordion title="API 认证错误" icon="lock">
+
+    **症状：** CLI 命令或 API 调用返回 `401 Unauthorized` 或 `403 Forbidden` 错误。
+
+    认证错误意味着发送的 API 密钥或会话令牌无效、已过期或缺乏必要的权限。
+
+    <Steps>
+      <Step title="验证 API 密钥是否正确设置">
+        检查 CLI 使用的凭证：
+
+        ```bash
+        gpucloud config list
+        ```
+
+        如果 `GPUCLOUD_API_KEY` 被设置为环境变量，它会优先于存储的配置。确认该变量是否正确：
+
+        ```bash
+        echo $GPUCLOUD_API_KEY
+        ```
+
+        如需重新应用密钥：
+
+        ```bash
+        gpucloud auth set-key <YOUR_API_KEY>
+        ```
+      </Step>
+      <Step title="在仪表板中检查密钥过期情况">
+        登录 [GPU Cloud 仪表板](https://console.gpucloud.com/settings/api-keys) 并确认你的 API 密钥：
+        - 尚未过期
+        - 未被撤销
+        - 具有你所执行操作所需的权限范围
+
+        如果密钥已过期或被撤销，请生成新的密钥并更新你的 CLI 配置。
+      </Step>
+      <Step title="交互式重新认证">
+        如果你使用基于浏览器的登录，你的会话令牌可能已过期。重新认证以获取新的令牌：
+
+        ```bash
+        gpucloud auth login
+        ```
+      </Step>
+      <Step title="检查团队和角色权限">
+        如果你在团队工作空间中操作，你的角色可能不包含执行所尝试操作的权限。请让工作空间管理员在[团队设置](https://console.gpucloud.com/settings/team)中审查你的角色。例如，`Viewer` 角色无法创建或终止实例。
+      </Step>
+    </Steps>
+
+  </Accordion>
+
+</AccordionGroup>
+
+---
+
+仍然无法解决？请[提交支持工单](https://gpucloud.com/support)，附上你的实例 ID、精确的错误消息以及 `gpucloud instance get <id>` 的输出，以最快解决问题。

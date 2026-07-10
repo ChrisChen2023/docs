@@ -1,0 +1,237 @@
+---
+title: "在 GPU Cloud 上创建和列出持久化存储卷"
+sidebarTitle: "存储卷"
+description: "创建、列出、附加和分离持久化存储卷，以便在 GPU Cloud 实例之间移动数据而不会在会话之间丢失。"
+---
+
+卷（Volume）是独立于任何单个实例存在的持久化块存储资源。与实例的本地磁盘不同，卷中的数据在实例终止后仍会保留——因此卷是存储数据集、模型检查点以及其他你希望长期保留的产物的合适位置。你可以一次将一个卷附加到一个实例，任务完成后将其分离，之后再重新附加到不同的实例。
+
+---
+
+## 列出存储卷
+
+获取你账户中的所有卷，无论它们当前是否已附加到实例上或处于可用状态。
+
+### 端点
+
+```
+GET https://api.gpucloud.com/v1/storage/volumes
+```
+
+### 请求
+
+此端点不接受请求体或查询参数。
+
+### 响应字段
+
+<ResponseField name="id" type="string">
+  卷的唯一标识符（例如 `vol_def456`）。
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  你在创建时为该卷指定的可读名称。
+</ResponseField>
+
+<ResponseField name="size_gb" type="integer">
+  为该卷分配的容量，单位为 GB。
+</ResponseField>
+
+<ResponseField name="region" type="string">
+  卷所在的区域（例如 `us-east-1`）。卷只能附加到位于同一区域的实例。
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  卷的当前状态。可能的值：`available`（可附加）、`attaching`、`attached`、`detaching`。
+</ResponseField>
+
+<ResponseField name="attached_to" type="string | null">
+  当前附加此卷的实例 ID，如果卷未附加则为 `null`。
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 时间戳，表示卷创建的时间。
+</ResponseField>
+
+### 请求示例
+
+```bash
+curl https://api.gpucloud.com/v1/storage/volumes \
+  -H "Authorization: Bearer <api-key>"
+```
+
+### 响应示例
+
+```json
+[
+  {
+    "id": "vol_def456",
+    "name": "training-data",
+    "size_gb": 500,
+    "region": "us-east-1",
+    "status": "available",
+    "attached_to": null,
+    "created_at": "2024-01-12T09:00:00Z"
+  }
+]
+```
+
+---
+
+## 创建存储卷
+
+在指定区域中预配一个新的持久化卷。当卷的 `status` 转换为 `available` 后即可用于附加。
+
+### 端点
+
+```
+POST https://api.gpucloud.com/v1/storage/volumes
+```
+
+### 请求体
+
+<ParamField body="name" type="string" required>
+  卷的描述性名称（例如 `"training-data"`）。
+</ParamField>
+
+<ParamField body="size_gb" type="integer" required>
+  期望的卷容量，单位为 GB。
+</ParamField>
+
+<ParamField body="region" type="string" required>
+  创建卷所在的区域（例如 `"us-east-1"`）。卷只能附加到同一区域的实例。
+</ParamField>
+
+### 响应字段
+
+响应是一个卷对象。请参见上方 [列出存储卷](#list-volumes) 中的字段说明。
+
+### 请求示例
+
+```bash
+curl -X POST https://api.gpucloud.com/v1/storage/volumes \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "training-data",
+    "size_gb": 500,
+    "region": "us-east-1"
+  }'
+```
+
+### 响应示例
+
+```json
+{
+  "id": "vol_def456",
+  "name": "training-data",
+  "size_gb": 500,
+  "region": "us-east-1",
+  "status": "available",
+  "attached_to": null,
+  "created_at": "2024-01-12T09:00:00Z"
+}
+```
+
+---
+
+## 附加存储卷
+
+将卷挂载到一个运行中的实例上。卷必须处于 `available` 状态且与目标实例位于同一区域。附加完成后，卷会作为块设备出现在实例上，你可以将其挂载到任意路径。
+
+### 端点
+
+```
+POST https://api.gpucloud.com/v1/storage/volumes/{id}/attach
+```
+
+### 路径参数
+
+<ParamField path="id" type="string" required>
+  要附加的卷的唯一标识符（例如 `vol_def456`）。
+</ParamField>
+
+### 请求体
+
+<ParamField body="instance_id" type="string" required>
+  要附加到的运行中实例的 ID（例如 `inst_abc123`）。该实例必须处于 `running` 状态且与卷位于同一区域。
+</ParamField>
+
+### 响应
+
+请求成功时返回 `200 OK`，包含更新后的卷对象。`status` 字段会从 `available` 转换为 `attaching`，然后变为 `attached`。`attached_to` 字段将反映目标实例的 ID。
+
+如果卷不处于 `available` 状态，API 会返回 `409 Conflict`。如果卷和实例位于不同区域，API 会返回 `422 Unprocessable Entity`。
+
+### 请求示例
+
+```bash
+curl -X POST https://api.gpucloud.com/v1/storage/volumes/vol_def456/attach \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instance_id": "inst_abc123"
+  }'
+```
+
+### 响应示例
+
+```json
+{
+  "id": "vol_def456",
+  "name": "training-data",
+  "size_gb": 500,
+  "region": "us-east-1",
+  "status": "attached",
+  "attached_to": "inst_abc123",
+  "created_at": "2024-01-12T09:00:00Z"
+}
+```
+
+---
+
+## 分离存储卷
+
+将卷从其当前所在的实例卸载，返回到 `available` 状态，以便附加到另一个实例或安全删除。
+
+### 端点
+
+```
+POST https://api.gpucloud.com/v1/storage/volumes/{id}/detach
+```
+
+### 路径参数
+
+<ParamField path="id" type="string" required>
+  要分离的卷的唯一标识符（例如 `vol_def456`）。
+</ParamField>
+
+### 请求
+
+此端点不接受请求体。路径中的卷 ID 用于标识要分离的卷。
+
+### 响应
+
+请求成功时返回 `200 OK`，包含更新后的卷对象。`status` 字段会从 `attached` 转换为 `detaching`，然后回到 `available`。分离完成后，`attached_to` 字段变为 `null`。
+
+如果卷当前并未附加，API 会返回 `409 Conflict`。
+
+### 请求示例
+
+```bash
+curl -X POST https://api.gpucloud.com/v1/storage/volumes/vol_def456/detach \
+  -H "Authorization: Bearer <api-key>"
+```
+
+### 响应示例
+
+```json
+{
+  "id": "vol_def456",
+  "name": "training-data",
+  "size_gb": 500,
+  "region": "us-east-1",
+  "status": "available",
+  "attached_to": null,
+  "created_at": "2024-01-12T09:00:00Z"
+}
+```

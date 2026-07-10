@@ -9,86 +9,179 @@
   },
   "favicon": "/favicon.svg",
   "navigation": {
-    "tabs": [
+    "languages": [
       {
-        "tab": "Documentation",
-        "groups": [
+        "language": "en",
+        "tabs": [
           {
-            "group": "Get Started",
-            "pages": [
-              "introduction",
-              "quickstart",
-              "account-setup"
+            "tab": "Documentation",
+            "groups": [
+              {
+                "group": "Get Started",
+                "pages": [
+                  "introduction",
+                  "quickstart",
+                  "account-setup"
+                ]
+              },
+              {
+                "group": "Core Concepts",
+                "pages": [
+                  "concepts/instances",
+                  "concepts/gpu-types",
+                  "concepts/storage",
+                  "concepts/networking"
+                ]
+              },
+              {
+                "group": "Guides",
+                "pages": [
+                  "guides/launch-instance",
+                  "guides/connect-ssh",
+                  "guides/jupyter-notebooks",
+                  "guides/docker-containers",
+                  "guides/persistent-storage",
+                  "guides/billing-and-costs"
+                ]
+              },
+              {
+                "group": "CLI",
+                "pages": [
+                  "cli/overview",
+                  "cli/commands"
+                ]
+              },
+              {
+                "group": "Support",
+                "pages": [
+                  "troubleshooting",
+                  "faq"
+                ]
+              }
             ]
           },
           {
-            "group": "Core Concepts",
-            "pages": [
-              "concepts/instances",
-              "concepts/gpu-types",
-              "concepts/storage",
-              "concepts/networking"
-            ]
-          },
-          {
-            "group": "Guides",
-            "pages": [
-              "guides/launch-instance",
-              "guides/connect-ssh",
-              "guides/jupyter-notebooks",
-              "guides/docker-containers",
-              "guides/persistent-storage",
-              "guides/billing-and-costs"
-            ]
-          },
-          {
-            "group": "CLI",
-            "pages": [
-              "cli/overview",
-              "cli/commands"
-            ]
-          },
-          {
-            "group": "Support",
-            "pages": [
-              "troubleshooting",
-              "faq"
+            "tab": "API Reference",
+            "groups": [
+              {
+                "group": "Overview",
+                "pages": [
+                  "api/overview",
+                  "api/authentication"
+                ]
+              },
+              {
+                "group": "Instances",
+                "pages": [
+                  "api/instances/list",
+                  "api/instances/create",
+                  "api/instances/get",
+                  "api/instances/terminate"
+                ]
+              },
+              {
+                "group": "SSH Keys",
+                "pages": [
+                  "api/ssh-keys/list",
+                  "api/ssh-keys/add",
+                  "api/ssh-keys/delete"
+                ]
+              },
+              {
+                "group": "Storage",
+                "pages": [
+                  "api/storage/volumes",
+                  "api/storage/snapshots"
+                ]
+              }
             ]
           }
         ]
       },
       {
-        "tab": "API Reference",
-        "groups": [
+        "language": "zh",
+        "tabs": [
           {
-            "group": "Overview",
-            "pages": [
-              "api/overview",
-              "api/authentication"
+            "tab": "文档",
+            "groups": [
+              {
+                "group": "入门",
+                "pages": [
+                  "zh/introduction",
+                  "zh/quickstart",
+                  "zh/account-setup"
+                ]
+              },
+              {
+                "group": "核心概念",
+                "pages": [
+                  "zh/concepts/instances",
+                  "zh/concepts/gpu-types",
+                  "zh/concepts/storage",
+                  "zh/concepts/networking"
+                ]
+              },
+              {
+                "group": "指南",
+                "pages": [
+                  "zh/guides/launch-instance",
+                  "zh/guides/connect-ssh",
+                  "zh/guides/jupyter-notebooks",
+                  "zh/guides/docker-containers",
+                  "zh/guides/persistent-storage",
+                  "zh/guides/billing-and-costs"
+                ]
+              },
+              {
+                "group": "CLI",
+                "pages": [
+                  "zh/cli/overview",
+                  "zh/cli/commands"
+                ]
+              },
+              {
+                "group": "支持",
+                "pages": [
+                  "zh/troubleshooting",
+                  "zh/faq"
+                ]
+              }
             ]
           },
           {
-            "group": "Instances",
-            "pages": [
-              "api/instances/list",
-              "api/instances/create",
-              "api/instances/get",
-              "api/instances/terminate"
-            ]
-          },
-          {
-            "group": "SSH Keys",
-            "pages": [
-              "api/ssh-keys/list",
-              "api/ssh-keys/add",
-              "api/ssh-keys/delete"
-            ]
-          },
-          {
-            "group": "Storage",
-            "pages": [
-              "api/storage/volumes",
-              "api/storage/snapshots"
+            "tab": "API 参考",
+            "groups": [
+              {
+                "group": "概述",
+                "pages": [
+                  "zh/api/overview",
+                  "zh/api/authentication"
+                ]
+              },
+              {
+                "group": "实例",
+                "pages": [
+                  "zh/api/instances/list",
+                  "zh/api/instances/create",
+                  "zh/api/instances/get",
+                  "zh/api/instances/terminate"
+                ]
+              },
+              {
+                "group": "SSH 密钥",
+                "pages": [
+                  "zh/api/ssh-keys/list",
+                  "zh/api/ssh-keys/add",
+                  "zh/api/ssh-keys/delete"
+                ]
+              },
+              {
+                "group": "存储",
+                "pages": [
+                  "zh/api/storage/volumes",
+                  "zh/api/storage/snapshots"
+                ]
+              }
             ]
           }
         ]
@@ -100,6 +193,51 @@
       "type": "button",
       "label": "Console",
       "href": "https://console.gpucloud.com"
+    }
+  },
+  "markdown": {
+    "schema": true
+  },
+  "api": {
+    "params": {
+      "expanded": "all"
+    },
+    "playground": {
+      "display": "interactive"
+    },
+    "examples": {
+      "defaults": "all",
+      "languages": [
+        "",
+        "python"
+      ],
+      "prefill": true,
+      "autogenerate": true
+    },
+    "url": "full",
+    "mdx": {
+      "auth": {
+        "method": "bearer"
+      }
+    }
+  },
+  "interaction": {
+    "drilldown": true
+  },
+  "contextual": {
+    "options": [
+      "view",
+      "download-pdf",
+      "copy"
+    ],
+    "display": "header"
+  },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "light": "catppuccin-macchiato",
+        "dark": "dark-plus"
+      }
     }
   }
 }

@@ -1,0 +1,129 @@
+---
+title: "GPU Cloud API 身份验证：密钥、作用域与错误"
+sidebarTitle: "身份验证"
+description: "生成 API 密钥，安全地在请求头中传递，理解密钥作用域，并了解密钥被泄露时的应对方法。"
+---
+
+你对 GPU Cloud API 发起的每一个请求都必须通过 API 密钥进行身份验证。API 密钥是长期有效的凭证，用于标识你的账户以及授予调用方的访问级别。你完全在 GPU Cloud 控制台中生成和管理密钥——无需 OAuth 流程或令牌交换。请妥善保管密钥：任何持有该密钥的人都可以在其作用域范围内代表你执行操作。
+
+## 生成 API 密钥
+
+1. 登录 [GPU Cloud 控制台](https://console.gpucloud.com)。
+2. 前往 **Settings → API Keys**。
+3. 点击 **Create API Key**。
+4. 为密钥指定一个描述性名称（例如 `ci-pipeline-prod`），并选择合适的作用域（参见下文的 [密钥作用域](#key-scopes)）。
+5. 点击 **Generate**。请立即复制密钥——完整的密钥仅在创建时显示一次。
+
+<Note>
+  关闭创建对话框后，GPU Cloud 仅显示每个密钥的最后四位字符。请在生成后立即将完整密钥存储在安全的密钥管理器中。
+</Note>
+
+## 传递 API 密钥
+
+在每个请求的 `Authorization` 头中，以 Bearer 令牌形式携带你的 API 密钥：
+
+```http
+Authorization: Bearer <your-api-key>
+```
+
+API 不支持在 URL 查询参数中携带密钥，也不支持基于 Cookie 的身份验证。请始终通过 HTTPS 传输密钥——API 会拒绝纯 HTTP 连接。
+
+### 示例
+
+<CodeGroup>
+
+```bash curl
+curl -X GET https://api.gpucloud.com/v1/instances \
+  -H "Authorization: Bearer <your-api-key>" \
+  -H "Accept: application/json"
+```
+
+```python Python
+import os
+import requests
+
+api_key = os.environ["GPUCLOUD_API_KEY"]
+
+response = requests.get(
+    "https://api.gpucloud.com/v1/instances",
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    },
+)
+
+response.raise_for_status()
+print(response.json())
+```
+
+```javascript JavaScript
+const apiKey = process.env.GPUCLOUD_API_KEY;
+
+const response = await fetch("https://api.gpucloud.com/v1/instances", {
+  method: "GET",
+  headers: {
+    Authorization: `Bearer ${apiKey}`,
+    Accept: "application/json",
+  },
+});
+
+if (!response.ok) {
+  const error = await response.json();
+  throw new Error(`API error: ${error.error.code} — ${error.error.message}`);
+}
+
+const instances = await response.json();
+console.log(instances);
+```
+
+</CodeGroup>
+
+<Tip>
+  请将 API 密钥存储在环境变量中（例如 `GPUCLOUD_API_KEY`），而不要在源文件中硬编码。上面三个示例都从环境变量中读取密钥——从第一天起就采用这种模式，可以避免凭证进入你的代码库和 CI 日志。
+</Tip>
+
+## 密钥作用域
+
+在创建 API 密钥时，你可以选择两种作用域之一。请选择满足需求的最严格作用域——这样一旦密钥泄露，可以将影响范围降到最低。
+
+| 作用域 | 说明 |
+|---|---|
+| **Read-Only** | 仅允许 `GET` 请求。适用于监控仪表板、只读的 CI 检查和审计脚本。无法创建、修改或删除任何资源。 |
+| **Full Access** | 允许所有请求方法（`GET`、`POST`、`PATCH`、`DELETE`）。配置实例、管理快照以及任何写入操作都需要该权限。 |
+
+<Note>
+  你可以创建多个具有不同作用域和名称的 API 密钥。请为不同的系统使用不同的密钥（例如一个用于 CI 管道，一个用于部署脚本），以便独立轮换或撤销它们。
+</Note>
+
+## 密钥被泄露时怎么办
+
+如果你怀疑某个 API 密钥已经泄露——无论是通过泄露的仓库、日志文件还是其他渠道——请立即撤销它：
+
+1. 在 [GPU Cloud 控制台](https://console.gpucloud.com) 中前往 **Settings → API Keys**。
+2. 按名称或后缀定位被泄露的密钥。
+3. 点击 **Revoke**。撤销立即生效；任何正在使用该密钥的请求都将收到 `401 unauthorized` 错误。
+4. 生成一个替换密钥，并更新你的密钥存储以及所有依赖旧密钥的服务。
+
+<Warning>
+  切勿将 API 密钥提交到源代码控制系统——即使是私有仓库也不行。提交到 Git 的密钥即使被删除，也会保留在历史记录中，任何有仓库访问权限的人都可以提取。请使用密钥管理器（例如 AWS Secrets Manager、HashiCorp Vault 或 CI 平台内置的密钥存储）在运行时注入凭证。
+</Warning>
+
+## 身份验证错误
+
+如果密钥缺失或无效，API 会返回 `401 unauthorized` 响应：
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid or missing API key. Provide a valid Bearer token in the Authorization header."
+  }
+}
+```
+
+出现 `401` 错误的常见原因：
+
+- 请求中没有 `Authorization` 头。
+- 密钥已在控制台中被撤销。
+- 复制密钥值时带有周围的空白字符或被截断。
+- 你在使用错误的环境（例如用生产密钥访问预发布端点）。

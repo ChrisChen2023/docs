@@ -1,0 +1,102 @@
+---
+title: "通过唯一 ID 获取单个 GPU 实例记录"
+sidebarTitle: "获取实例"
+description: "使用唯一 ID 获取特定 GPU 实例的完整详情，包括其当前状态、网络信息和每小时费用。"
+---
+
+Get Instance 端点返回单个 GPU 实例的完整、最新记录。你可以用它在实例启动时轮询其 `status`、在实例进入 `running` 后获取其 `ip_address`，或随时检查其任何配置详情。你只需要实例的 ID，该 ID 在你 [创建实例](/zh/api/instances/create) 或 [列出实例](/zh/api/instances/list) 时返回。
+
+## 端点
+
+```
+GET https://api.gpucloud.com/v1/instances/{id}
+```
+
+## 路径参数
+
+<ParamField path="id" type="string" required>
+  你要检索的实例的唯一标识符（例如 `inst_abc123`）。
+</ParamField>
+
+## 响应字段
+
+成功的请求返回 `200 OK`，包含完整的实例对象。
+
+<ResponseField name="id" type="string">
+  实例的唯一标识符（例如 `inst_abc123`）。
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  创建时为实例指定的人类可读名称。
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  实例当前的生命周期状态。可能的值：
+
+  - `pending` — 实例正在配置中，尚未启动。
+  - `running` — 实例已激活，可通过 SSH 访问。
+  - `stopping` — 已收到终止请求并正在处理。
+  - `terminated` — 实例已关闭，不再可访问。
+</ResponseField>
+
+<ResponseField name="gpu_type" type="string">
+  为实例配置的 GPU 硬件类型（例如 `h100-80gb-sxm`）。
+</ResponseField>
+
+<ResponseField name="gpu_count" type="integer">
+  挂载到实例的 GPU 数量。
+</ResponseField>
+
+<ResponseField name="region" type="string">
+  实例部署所在的区域标识（例如 `us-east-1`）。
+</ResponseField>
+
+<ResponseField name="ip_address" type="string">
+  实例的公网 IPv4 地址。当实例仍处于 `pending` 状态时，此字段为 `null`，一旦实例进入 `running` 状态便会被填充。
+</ResponseField>
+
+<ResponseField name="disk_image" type="string">
+  用于启动实例的磁盘镜像标识符（例如 `pytorch-2.1-cuda-12`）。
+</ResponseField>
+
+<ResponseField name="disk_size_gb" type="integer">
+  根磁盘大小（以 GB 为单位）。
+</ResponseField>
+
+<ResponseField name="ssh_key_id" type="string">
+  获授权访问实例的 SSH 公钥 ID。
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  记录实例创建时间和计费开始时刻的 ISO 8601 时间戳。
+</ResponseField>
+
+<ResponseField name="hourly_cost_usd" type="number">
+  实例当前的每小时费率（以美元计）。
+</ResponseField>
+
+## 示例请求
+
+```bash
+curl https://api.gpucloud.com/v1/instances/inst_abc123 \
+  -H "Authorization: Bearer <api-key>"
+```
+
+## 示例响应
+
+```json
+{
+  "id": "inst_abc123",
+  "name": "my-training-run",
+  "status": "running",
+  "gpu_type": "h100-80gb-sxm",
+  "gpu_count": 1,
+  "region": "us-east-1",
+  "ip_address": "203.0.113.42",
+  "disk_image": "pytorch-2.1-cuda-12",
+  "disk_size_gb": 100,
+  "ssh_key_id": "key_xyz789",
+  "created_at": "2024-01-15T10:30:00Z",
+  "hourly_cost_usd": 3.50
+}
+```

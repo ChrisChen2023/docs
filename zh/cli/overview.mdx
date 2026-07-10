@@ -1,0 +1,127 @@
+---
+title: "GPU Cloud CLI：安装与认证指南"
+sidebarTitle: "概览"
+description: "使用 pip 安装 gpucloud CLI，通过浏览器或 API key 进行认证，并从终端开始管理 GPU 实例和卷。"
+---
+
+GPU Cloud CLI（`gpucloud`）让你可以直接在终端全面控制你的云资源。你可以预配实例、管理持久卷、配置 SSH 密钥和监控工作负载，而无需打开控制台。无论你是在编写自动化流水线还是更喜欢命令行，CLI 都是与 GPU Cloud 交互最快捷的方式。
+
+## 安装
+
+CLI 需要 Python 3.8 或更高版本。选择最适合你工作流的安装方式。
+
+<CodeGroup>
+
+```bash pip
+pip install gpucloud-cli
+```
+
+```bash pipx
+pipx install gpucloud-cli
+```
+
+```bash brew
+brew install gpucloud-cli
+```
+
+</CodeGroup>
+
+安装完成后，通过检查版本来确认 CLI 可用：
+
+```bash
+gpucloud --version
+```
+
+<Tip>
+  使用 `pipx` 会将 CLI 安装到隔离环境中，避免与系统上其他 Python 包发生依赖冲突。这是大多数开发者的推荐方式。
+</Tip>
+
+## 认证
+
+在运行任何命令之前，你需要用 GPU Cloud 账户对 CLI 进行认证。有两种方式：交互式浏览器登录，以及适用于无头或 CI/CD 环境的非交互式 API key 流程。
+
+<Tabs>
+  <Tab title="浏览器登录">
+    运行登录命令会在默认浏览器中打开认证页面。CLI 会等待你完成登录并自动将凭据存储到本地。
+
+    ```bash
+    gpucloud auth login
+    ```
+
+    认证成功后，你会在终端看到确认信息：
+
+    ```
+    ✓ Authenticated as user@example.com
+    ✓ Credentials saved to ~/.config/gpucloud/credentials
+    ```
+
+    <Note>
+      浏览器登录是交互式使用的推荐方式。你的会话 token 会安全地存储在本地配置目录中并自动刷新。
+    </Note>
+  </Tab>
+  <Tab title="API Key">
+    在 [GPU Cloud 控制台](https://console.gpucloud.com/settings/api-keys)中生成 API key 并直接传给 CLI。此方法适用于自动化脚本、Docker 容器和 CI/CD 流水线。
+
+    ```bash
+    gpucloud auth set-key <API_KEY>
+    ```
+
+    你也可以通过环境变量提供密钥，避免存储到磁盘：
+
+    ```bash
+    export GPUCLOUD_API_KEY=your_api_key_here
+    gpucloud instance list
+    ```
+
+    <Warning>
+      切勿将 API key 提交到源码管理中。在 CI/CD 流水线中请使用环境变量或密钥管理器，确保凭据安全。
+    </Warning>
+  </Tab>
+</Tabs>
+
+## 全局参数
+
+每个 `gpucloud` 命令都支持一组全局参数，用于控制输出格式、目标区域以及通用行为。这些参数必须紧跟在 `gpucloud` 之后，位于子命令之前。
+
+| 参数 | 取值 | 描述 |
+|---|---|---|
+| `--output` | `json`、`table`、`yaml` | 设置输出格式。默认为 `table`，适合人工阅读。 |
+| `--region` | 例如 `us-east-1`、`eu-west-2` | 覆盖命令的默认区域。 |
+| `--help` | — | 打印任意命令或子命令的帮助文本。 |
+| `--quiet` | — | 抑制信息性输出，适用于脚本。 |
+| `--no-color` | — | 关闭彩色输出，方便日志处理管道。 |
+
+### 输出格式
+
+使用 `--output json` 获取机器可读的输出，便于脚本处理或通过 `jq` 等工具管道处理：
+
+```bash
+gpucloud --output json instance list | jq '.[].id'
+```
+
+### 指定区域
+
+使用 config 命令一次性设置默认区域，就无需每次都传 `--region`：
+
+```bash
+gpucloud config set region us-east-1
+```
+
+需要时可按命令覆盖：
+
+```bash
+gpucloud --region eu-west-2 instance list
+```
+
+## 下一步
+
+CLI 安装并认证完成后，可查看完整的命令参考开始管理你的 GPU 资源。
+
+<CardGroup cols={2}>
+  <Card title="CLI 命令" icon="terminal" href="/zh/cli/commands">
+    浏览每个 `gpucloud` 命令、参数和用法的完整参考。
+  </Card>
+  <Card title="故障排查" icon="wrench" href="/zh/troubleshooting">
+    快速解决常见的 CLI 和实例问题。
+  </Card>
+</CardGroup>

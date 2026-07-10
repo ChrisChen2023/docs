@@ -1,0 +1,86 @@
+---
+title: "GPU Cloud 上可用的 GPU 类型"
+sidebarTitle: "GPU 类型"
+description: "了解 GPU Cloud 上所有可用的 GPU 型号、显存、理想工作负载和起始价格，为你的项目找到合适的硬件。"
+---
+
+GPU Cloud 提供多种 NVIDIA GPU 型号，让你可以将硬件与实际工作负载精确匹配 —— 无需过度配置，也不必为用不到的能力付费。从在 H100 上进行前沿 AI 训练到在 A10 上进行成本高效的推理，每种 GPU 类型都在多个区域按需可用。以下部分详细介绍了每个选项，包括每张卡最擅长的工作负载以及入门价格。
+
+## 可用 GPU 型号
+
+| GPU 型号 | 显存 | 最适合 | 每小时价格（起） |
+|---|---|---|---|
+| NVIDIA H100 80GB SXM5 | 80 GB HBM3 | 前沿 AI 训练、大型语言模型 | $3.50 / hr |
+| NVIDIA A100 80GB SXM4 | 80 GB HBM2e | AI/ML 训练与推理 | $2.20 / hr |
+| NVIDIA A100 40GB PCIe | 40 GB HBM2 | 成本高效的训练与推理 | $1.49 / hr |
+| NVIDIA RTX 4090 24GB | 24 GB GDDR6X | 开发、微调、推理 | $0.79 / hr |
+| NVIDIA A40 48GB | 48 GB GDDR6 | 专业可视化与推理 | $1.20 / hr |
+| NVIDIA A10 24GB | 24 GB GDDR6 | 推理与轻量训练 | $0.49 / hr |
+
+<Tip>
+  不确定该选哪款 GPU？先从 **RTX 4090** 开始进行开发和迭代实验 —— 其较低的每小时费率让你可以快速迭代。当准备好扩展训练时，再切换到 **A100 80GB** 或 **H100** 以获得最大吞吐。如果你在生产中提供模型服务，**A10** 或 **A40** 为大多数架构提供了最佳的单次推理成本。
+</Tip>
+
+## 深入了解 GPU 配置
+
+<CardGroup cols={2}>
+  <Card title="NVIDIA H100 80GB SXM5" icon="bolt">
+    H100 SXM5 是 GPU Cloud 的旗舰训练加速器。拥有 80 GB 的 HBM3 内存、3.35 TB/s 的内存带宽，以及在多 GPU 配置中使用的 NVLink 4.0 互连，专为预训练和微调大型语言模型、扩散模型及其他前沿工作负载而设计。当模型权重和优化器状态超过 40 GB 或需要最大张量核心吞吐时，请选择 H100。
+  </Card>
+  <Card title="NVIDIA A100 80GB SXM4" icon="brain">
+    A100 80GB SXM4 是专业 AI/ML 团队的主力。其 80 GB HBM2e 内存可容纳大批量和多模态架构，而 NVLink 3.0 让多 GPU 训练高效运行。它可处理训练和高吞吐推理，成熟的软件生态意味着几乎所有框架都对其进行了良好优化。
+  </Card>
+  <Card title="NVIDIA A100 40GB PCIe" icon="scale-balanced">
+    A100 40GB PCIe 以更低价格提供 A100 级别的算力。PCIe 形态以少许 GPU 间带宽换取更广泛的可用性和更低的小时费率，非常适合模型能装入 40 GB 且你希望在不牺牲单 GPU 训练速度的前提下降低成本的场景。
+  </Card>
+  <Card title="NVIDIA RTX 4090 24GB" icon="code">
+    RTX 4090 是开发与实验的首选 GPU。它的 Ada Lovelace 架构提供第四代张量核心和 24 GB 高速 GDDR6X 内存，价格是平台上最亲民的。在正式转向 A100 或 H100 上更大规模的训练之前，用它来做原型、调试和快速迭代。
+  </Card>
+  <Card title="NVIDIA A40 48GB" icon="display">
+    A40 将 48 GB GDDR6 内存与对 NVIDIA 专业可视化栈的完整支持相结合，并提供稳健的 FP32 和 FP16 算力。它非常适合需要大 KV 缓存的推理工作负载、混合渲染与 AI 的多模态流水线，以及需要在 CUDA 之外同时使用 OpenGL/Vulkan 的应用。
+  </Card>
+  <Card title="NVIDIA A10 24GB" icon="gauge-high">
+    A10 针对大规模推理进行了优化。其 Ampere 架构在功耗友好的规格下提供高效的 INT8 和 FP16 推理性能。如果你部署的是生产推理端点并希望最小化每次查询的成本，A10 是平台上最经济的 GPU。
+  </Card>
+</CardGroup>
+
+## 多 GPU 配置
+
+多种 GPU 类型可在多 GPU 实例配置中使用，让你可以将单个实例扩展到最多 8 张通过 NVLink 或 NVSwitch 连接的 GPU，以获得最大的 GPU 间带宽。
+
+| 实例类型 | GPU | 总显存 | 使用场景 |
+|---|---|---|---|
+| `gpu.h100.1x` | 1× H100 80GB | 80 GB | 单节点训练、大型推理 |
+| `gpu.h100.4x` | 4× H100 80GB | 320 GB | 中等规模 LLM 训练 |
+| `gpu.h100.8x` | 8× H100 80GB | 640 GB | 全规模 LLM 预训练 |
+| `gpu.a100-80gb.1x` | 1× A100 80GB | 80 GB | 训练与推理 |
+| `gpu.a100-80gb.8x` | 8× A100 80GB | 640 GB | 大规模分布式训练 |
+| `gpu.rtx4090.1x` | 1× RTX 4090 | 24 GB | 开发与微调 |
+| `gpu.a10.1x` | 1× A10 | 24 GB | 生产推理 |
+
+<Note>
+  多 GPU 实例按单 GPU 小时费率的倍数计价。NVLink 连接的配置（H100 SXM5、A100 SXM4）比 PCIe 连接的多 GPU 组合提供显著更高的 GPU 间带宽，推荐用于数据并行和张量并行的训练任务。
+</Note>
+
+## 选择合适的 GPU
+
+使用下面的决策指南快速缩小选择范围。
+
+<Tabs>
+  <Tab title="训练">
+    - **模型参数 > 7B 或需要最大吞吐** → H100 80GB SXM5
+    - **模型参数 1B–7B 或注重预算的训练** → A100 80GB SXM4
+    - **模型能装入 40 GB 且成本最重要** → A100 40GB PCIe
+    - **原型开发或微调小模型** → RTX 4090
+  </Tab>
+  <Tab title="推理">
+    - **大模型服务（权重 >20 GB）** → A100 80GB 或 H100 80GB
+    - **中型模型 + 成本效率** → A40 48GB
+    - **高吞吐生产端点** → A10 24GB
+    - **低量或开发推理** → RTX 4090
+  </Tab>
+  <Tab title="可视化">
+    - **专业 OpenGL/Vulkan + AI 流水线** → A40 48GB
+    - **交互式 notebook 和轻量渲染** → RTX 4090
+  </Tab>
+</Tabs>

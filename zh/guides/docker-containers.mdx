@@ -1,0 +1,237 @@
+---
+title: "在 GPU Cloud 上运行 GPU 加速的 Docker 容器"
+sidebarTitle: "Docker 容器"
+description: "在 GPU Cloud 上使用 NVIDIA Container Toolkit 拉取并运行 GPU 加速的 Docker 容器，附带 PyTorch、TensorFlow 及自定义镜像示例。"
+---
+
+Docker 容器是打包和复现 GPU 工作负载的绝佳方式——无论你是在 RTX 4090 上做原型，还是在 H100 集群上扩展规模，你都会得到运行结果一致的一致环境。GPU Cloud 预构建的磁盘镜像已经预装了 Docker 和 NVIDIA Container Toolkit，因此当你的实例进入 **Running** 状态后，几秒内就能拉取容器并启动 GPU 加速工作负载。
+
+## 预装内容
+
+所有 GPU Cloud 镜像（PyTorch、TensorFlow 和 bare Ubuntu）都包含：
+
+- **Docker Engine**（最新稳定版）——使用 `docker --version` 查看
+- **NVIDIA Container Toolkit**（`nvidia-container-toolkit`）——为容器启用 GPU 透传
+- 与已安装 CUDA 版本匹配的 **NVIDIA 驱动**
+
+你不需要自行安装或配置这些组件。如果你需要验证 toolkit 是否可用：
+
+```bash
+nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+```
+
+两条命令都应无报错地显示你的 GPU 型号和驱动版本。
+
+## 从 Docker Hub 拉取镜像
+
+使用 `docker pull` 下载任何公开镜像。要获取 NVIDIA 官方的深度学习镜像，请从 [Docker Hub](https://hub.docker.com/r/nvidia/cuda) 或 [NGC](https://ngc.nvidia.com) 拉取：
+
+```bash
+# 官方 CUDA 基础镜像
+docker pull nvidia/cuda:12.2.0-base-ubuntu22.04
+
+# NGC 上的官方 PyTorch 镜像
+docker pull nvcr.io/nvidia/pytorch:23.10-py3
+
+# NGC 上的官方 TensorFlow 镜像
+docker pull nvcr.io/nvidia/tensorflow:23.10-tf2-py3
+```
+
+<Tip>
+  NGC 镜像较大（几个 GB），但已针对指定 CUDA 版本预编译了 cuBLAS、cuDNN、NCCL 和 Apex 等优化库。它们是开箱即用获得最佳 GPU 性能的最快方式。
+</Tip>
+
+## 以 GPU 访问方式运行容器
+
+关键参数是 `--gpus all`，它会告诉 Docker 通过 NVIDIA Container Toolkit 将所有可用 GPU 暴露给容器：
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+```
+
+仅暴露特定 GPU（例如第一块）：
+
+```bash
+docker run --rm --gpus '"device=0"' nvidia/cuda:12.2.0-base-ubuntu22.04 nvidia-smi
+```
+
+## 示例：交互式 PyTorch 容器
+
+以下命令启动一个交互式 PyTorch 容器，并将你当前的工作目录挂载到容器内：
+
+```bash
+docker run -it --rm \
+  --gpus all \
+  --shm-size=16g \
+  -v "$(pwd)":/workspace \
+  -w /workspace \
+  -p 8888:8888 \
+  nvcr.io/nvidia/pytorch:23.10-py3 \
+  bash
+```
+
+| 参数 | 用途 |
+|------|---------|
+| `-it` | 交互式终端 |
+| `--rm` | 退出时移除容器 |
+| `--gpus all` | 暴露所有 GPU |
+| `--shm-size=16g` | 为 DataLoader worker 增加共享内存 |
+| `-v "$(pwd)":/workspace` | 将当前目录挂载到 `/workspace` |
+| `-w /workspace` | 设置容器内的工作目录 |
+| `-p 8888:8888` | 转发 Jupyter 端口（可选） |
+
+进入容器后，验证 GPU 是否可用：
+
+```python
+python -c "import torch; print(torch.cuda.get_device_name(0))"
+```
+
+## 示例：非交互式运行训练脚本
+
+若要运行完成后自动退出的脚本：
+
+```bash
+docker run --rm \
+  --gpus all \
+  --shm-size=16g \
+  -v "$(pwd)":/workspace \
+  -w /workspace \
+  nvcr.io/nvidia/pytorch:23.10-py3 \
+  python train.py --epochs 10 --batch-size 64
+```
+
+输出会实时流式打印到你的终端。添加 `-d` 可分离并在后台运行：
+
+```bash
+docker run -d \
+  --gpus all \
+  --shm-size=16g \
+  --name training_run \
+  -v "$(pwd)":/workspace \
+  -w /workspace \
+  nvcr.io/nvidia/pytorch:23.10-py3 \
+  python train.py --epochs 10 --batch-size 64
+```
+
+## 管理容器生命周期
+
+<CodeGroup>
+```bash List Running Containers
+docker ps
+```
+
+```bash List All Containers (including stopped)
+docker ps -a
+```
+
+```bash View Container Logs
+docker logs training_run
+
+# 实时查看日志
+docker logs -f training_run
+```
+
+```bash Stop a Container
+docker stop training_run
+```
+
+```bash Remove a Stopped Container
+docker rm training_run
+```
+
+```bash Remove an Image
+docker rmi nvcr.io/nvidia/pytorch:23.10-py3
+```
+</CodeGroup>
+
+## 构建自定义镜像
+
+当你有项目特定的依赖时，可以基于 GPU 基础镜像构建自己的镜像。在项目根目录创建 `Dockerfile`：
+
+```dockerfile
+FROM nvcr.io/nvidia/pytorch:23.10-py3
+
+# 安装额外的 Python 包
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# 复制项目代码
+WORKDIR /app
+COPY . /app
+
+CMD ["python", "train.py"]
+```
+
+构建并运行：
+
+```bash
+# 构建
+docker build -t my-training-image:v1 .
+
+# 运行
+docker run --rm --gpus all my-training-image:v1
+```
+
+<Note>
+  大镜像（包含 CUDA 库、模型权重等）可能占用相当多的根盘空间。使用 `docker system df` 查看使用情况，使用 `docker system prune` 移除未使用的镜像和容器。考虑[挂载持久卷](/zh/guides/persistent-storage)，将大型模型检查点和数据集存放到容器外部。
+</Note>
+
+## 将镜像推送到 Registry
+
+若要跨实例复用你的自定义镜像或与队友共享，请将其推送到 Docker Hub 或私有 Registry：
+
+```bash
+# 登录 Docker Hub
+docker login
+
+# 为镜像打标签
+docker tag my-training-image:v1 youruser/my-training-image:v1
+
+# 推送
+docker push youruser/my-training-image:v1
+```
+
+在新实例上立即拉取并运行：
+
+```bash
+docker run --rm --gpus all youruser/my-training-image:v1
+```
+
+## 使用 Docker Compose
+
+对于多容器组合（例如一个训练服务 + 一个指标导出器），Docker Compose 在 GPU Cloud 实例上可以正常工作。添加 `deploy.resources.reservations.devices` 以授予 GPU 访问权限：
+
+```yaml
+services:
+  trainer:
+    image: nvcr.io/nvidia/pytorch:23.10-py3
+    command: python train.py
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+```
+
+启动整套服务：
+
+```bash
+docker compose up
+```
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="持久存储" icon="hard-drive" href="/zh/guides/persistent-storage">
+    挂载持久卷，将数据集和模型检查点存放到容器之外。
+  </Card>
+  <Card title="Jupyter Notebooks" icon="book-open" href="/zh/guides/jupyter-notebooks">
+    在容器内运行 JupyterLab 并通过 SSH 隧道访问。
+  </Card>
+</CardGroup>

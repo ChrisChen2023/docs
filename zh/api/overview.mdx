@@ -1,0 +1,116 @@
+---
+title: "GPU Cloud REST API 概览：基础 URL 与速率限制"
+sidebarTitle: "概览"
+description: "了解 GPU Cloud REST API 的基础 URL、请求格式、身份验证、速率限制和错误码，助你顺利完成首次调用。"
+---
+
+GPU Cloud REST API 让你可以通过编程方式访问 GPU 基础设施的方方面面。无论是配置实例、管理快照，还是查询计费数据，控制台中提供的每一项操作都可以通过该 API 完成。所有通信均通过 HTTPS 进行，请求和响应体都以 JSON 编码，让 API 可以轻松集成到任何语言或工具链中。
+
+## 基础 URL 与版本控制
+
+每次 API 请求都指向以下基础 URL：
+
+```
+https://api.gpucloud.com/v1
+```
+
+`/v1` 路径段表示当前稳定版本的 API。当引入破坏性变更时，GPU Cloud 会发布新的带版本号的路径（例如 `/v2`），并提供弃用窗口期，让你有充足的时间进行迁移。非破坏性的新增内容——例如新的可选字段或新的端点——可能随时被添加到当前版本中。
+
+## 请求与响应格式
+
+所有请求体都必须以 JSON 发送。对于任何携带请求体的请求（例如 `POST`、`PATCH`、`PUT`），请添加 `Content-Type: application/json` 头。响应始终以 JSON 返回，成功响应使用标准的 HTTP `2xx` 状态码。
+
+```http
+Content-Type: application/json
+Accept: application/json
+```
+
+<Note>
+  对于携带请求体的请求，如果省略 `Content-Type: application/json` 头，将收到 `400 invalid_request` 错误。
+</Note>
+
+## 速率限制
+
+API 对每个 API 密钥强制执行 **每分钟 1,000 次请求** 的限制。每次成功调用的响应头中都包含以下字段，帮助你管理消耗：
+
+| 头字段 | 说明 |
+|---|---|
+| `X-RateLimit-Limit` | 每分钟允许的最大请求数 |
+| `X-RateLimit-Remaining` | 当前窗口中剩余的请求数 |
+| `X-RateLimit-Reset` | 当前窗口重置的 Unix 时间戳 |
+
+如果超出限制，API 将返回 `429 rate_limited` 错误。请在客户端中实现指数退避，以从容应对突发请求。
+
+## 错误格式
+
+请求失败时，API 会返回一个 JSON 对象，包含单个 `error` 键，其中含有机器可读的 `code` 和人类可读的 `message`：
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "The requested instance 'inst_abc123' does not exist."
+  }
+}
+```
+
+### 错误码
+
+| HTTP 状态码 | Code | 说明 |
+|---|---|---|
+| `400` | `invalid_request` | 请求体或参数格式不正确，或缺少必填字段。 |
+| `401` | `unauthorized` | API 密钥缺失、无效或已被撤销。 |
+| `404` | `not_found` | 请求的资源不存在，或凭证无权访问。 |
+| `429` | `rate_limited` | 已超过每分钟 1,000 次请求的速率限制。 |
+| `500` | `internal_error` | GPU Cloud 服务器上发生了意外错误。请使用退避策略重试。 |
+
+## 发起第一次 API 调用
+
+下面的示例获取你正在运行的实例列表——这是一个简单的读取操作，只需要一个有效的 API 密钥，无需请求体。
+
+<CodeGroup>
+
+```bash curl
+curl -X GET https://api.gpucloud.com/v1/instances \
+  -H "Authorization: Bearer <your-api-key>" \
+  -H "Accept: application/json"
+```
+
+```python Python
+import requests
+
+api_key = "<your-api-key>"
+
+response = requests.get(
+    "https://api.gpucloud.com/v1/instances",
+    headers={
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    },
+)
+
+response.raise_for_status()
+instances = response.json()
+print(instances)
+```
+
+</CodeGroup>
+
+## 下一步
+
+浏览下面的章节，了解如何进行身份验证并开始使用 GPU Cloud 资源。
+
+<CardGroup cols={2}>
+  <Card title="身份验证" icon="key" href="/zh/api/authentication">
+    了解如何生成和使用 API 密钥来对每个请求进行身份验证。
+  </Card>
+  <Card title="实例" icon="server" href="/zh/api/instances">
+    通过 API 配置、管理和终止 GPU 计算实例。
+  </Card>
+  <Card title="快照" icon="camera" href="/zh/api/storage/snapshots">
+    为你的实例和卷创建并恢复时间点快照。
+  </Card>
+  <Card title="计费" icon="credit-card" href="/zh/guides/billing-and-costs">
+    以编程方式查询使用记录和成本明细。
+  </Card>
+</CardGroup>

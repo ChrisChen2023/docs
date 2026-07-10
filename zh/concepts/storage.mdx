@@ -1,0 +1,148 @@
+---
+title: "GPU Cloud 存储选项"
+sidebarTitle: "存储"
+description: "了解临时实例存储与持久化卷的区别，并学习快照如何在 GPU Cloud 上保护你的数据。"
+---
+
+GPU Cloud 提供两种不同的存储模型，以匹配你的性能和持久性需求。实例存储是与主机同处一处的 NVMe SSD，为活跃的训练任务提供最大吞吐；而持久化卷是网络挂载的驱动器，在实例终止后仍能保留，并可以随时间在多个实例之间共享。选择合适的存储类型 —— 或两者结合使用 —— 是保持数据安全和工作负载高性能的关键。
+
+## 实例存储（临时）
+
+每个 GPU 实例都配备了物理挂载在主机上的本地 NVMe SSD。这块磁盘存放你的操作系统、预装软件、你复制进来的数据集、你写出的模型检查点，以及你在会话期间创建的任何其他文件。
+
+**关键特征：**
+
+- **速度** —— 无网络跳转的直接 NVMe 访问，提供最高的顺序和随机 I/O 性能。大数据集读取和检查点写入会显著受益于这种本地性。
+- **容量** —— 根据实例类型不同，容量从 100 GB 到 2 TB 不等。请查看实例类型规格以获取确切分配。
+- **生命周期** —— 磁盘只在实例存在时才存在。当你终止实例时，数据会被永久且不可恢复地删除。
+- **不额外收费** —— 实例存储包含在实例每小时价格中，不产生额外费用。
+
+<Warning>
+  不要仅依赖实例存储保存你想保留的数据。在终止实例前，请将检查点、数据集和输出复制到持久化卷或外部对象存储。
+</Warning>
+
+## 持久化卷
+
+持久化卷是你独立于任何实例配置的网络挂载块设备。创建后，卷会一直存在于你的账户中，直到你显式删除它 —— 它可以在实例停止、重启和终止之后继续保留。
+
+**关键特征：**
+
+- **持久性** —— 数据会在同一可用区中的多个驱动器之间复制，防止单块磁盘故障导致的数据丢失。
+- **灵活性** —— 你可以将卷挂载到一个实例上，卸载后再挂载到同一区域的另一个实例上 —— 例如把训练好的模型移交给推理实例。
+- **容量** —— 容量从 50 GB 到 64 TB 不等，无需卸载即可在线扩容。
+- **性能** —— 与本地 NVMe 相比，网络挂载存储会引入更多延迟。对于 I/O 密集的热路径操作（例如读取训练批次），请先将数据复制到实例存储。
+- **定价** —— 只要卷存在就按 GB-月计费，与是否挂载到运行中的实例无关。
+
+### 挂载与卸载卷
+
+<Tabs>
+  <Tab title="仪表板">
+    在侧边栏打开 **Storage** 部分，选择你的卷，然后点击 **Attach**。选择目标实例和挂载路径，然后确认。要卸载，请返回卷的详情页并点击 **Detach**。
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    # Create a 500 GB persistent volume
+    gpucloud volumes create --name training-data --size 500 --region us-east-1
+
+    # Attach volume to a running instance
+    gpucloud volumes attach vol_x9y8z7w6 \
+      --instance inst_a1b2c3d4 \
+      --mount-path /mnt/data
+
+    # Detach volume from its current instance
+    gpucloud volumes detach vol_x9y8z7w6
+
+    # List all volumes in your account
+    gpucloud volumes list
+    ```
+  </Tab>
+  <Tab title="API">
+    ```bash
+    # Create a persistent volume
+    curl -X POST https://api.gpucloud.com/v1/volumes \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "training-data",
+        "size_gb": 500,
+        "region": "us-east-1"
+      }'
+
+    # Attach volume to an instance
+    curl -X POST https://api.gpucloud.com/v1/volumes/vol_x9y8z7w6/attach \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "instance_id": "inst_a1b2c3d4",
+        "mount_path": "/mnt/data"
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## 快照
+
+快照是持久化卷的一个时间点的只读副本。快照冗余地存储在 GPU Cloud 对象存储中，可用于：
+
+- 在有风险的实验或软件升级之前**备份进行中的工作**
+- 通过从快照创建新卷来**克隆环境**
+- 通过授予快照访问权限在团队成员之间**共享数据集或模型权重**
+
+快照是增量的 —— 只存储自上次快照以来发生变化的块，即使频繁做快照也能保持较低的存储成本。
+
+<Steps>
+  <Step title="创建快照">
+    ```bash
+    gpucloud snapshots create \
+      --volume vol_x9y8z7w6 \
+      --name "checkpoint-epoch-50"
+    ```
+  </Step>
+  <Step title="列出你的快照">
+    ```bash
+    gpucloud snapshots list --volume vol_x9y8z7w6
+    ```
+  </Step>
+  <Step title="恢复到新卷">
+    ```bash
+    gpucloud volumes create \
+      --from-snapshot snap_m3n4o5p6 \
+      --name restored-data \
+      --region us-east-1
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  快照按存储数据的每 GB-月固定费率计费。由于快照是增量的，每一次后续快照的费用通常远低于整个卷的容量。
+</Note>
+
+## 存储对比
+
+| 特性 | 实例存储 | 持久化卷 |
+|---|---|---|
+| 类型 | 本地 NVMe SSD | 网络挂载的块存储 |
+| 性能 | 非常高（直接 NVMe） | 高（网络 I/O） |
+| 实例终止后是否保留 | ❌ 否 | ✅ 是 |
+| 是否可挂载到多个实例 | ❌ 否 | ✅ 是（同一时刻一台） |
+| 创建后是否可调整大小 | ❌ 否 | ✅ 是（在线） |
+| 是否支持快照 | ❌ 否 | ✅ 是 |
+| 是否包含在实例价格中 | ✅ 是 | ❌ 否（按 GB-月） |
+| 最适合 | 热训练数据、操作系统、活跃检查点 | 数据集、模型权重、长期输出 |
+
+## 推荐模式
+
+<CardGroup cols={2}>
+  <Card title="训练任务" icon="dumbbell">
+    将原始数据集存储在持久化卷上。在任务开始时，将活跃分片复制到实例存储以获得快速 I/O。任务结束前，将最终检查点写回持久化卷。
+  </Card>
+  <Card title="推理端点" icon="server">
+    将模型权重存放在持久化卷上，这样如果原实例被回收或终止，你可以立即将它挂载到替代实例上。
+  </Card>
+  <Card title="团队协作" icon="users">
+    对经过整理的数据集卷做快照，并与队友共享快照 ID。每位团队成员可以从该快照创建自己的卷，以确保起始条件可复现。
+  </Card>
+  <Card title="备份策略" icon="shield-check">
+    使用 API 或 CLI 在 cron 任务中安排对持久化卷的定期快照。保留最近的 N 个快照，以在恢复点目标与快照存储成本之间取得平衡。
+  </Card>
+</CardGroup>

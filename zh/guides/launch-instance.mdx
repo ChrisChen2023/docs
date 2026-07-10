@@ -1,0 +1,119 @@
+---
+title: "启动 GPU Cloud 实例：选择 GPU、区域和镜像"
+sidebarTitle: "启动实例"
+description: "通过 GPU Cloud 控制台，只需几分钟即可预配 GPU 加速的计算实例。选择你的 GPU、区域、磁盘镜像和存储，然后连接使用。"
+---
+
+在 GPU Cloud 上启动 GPU 实例只需要点击几下。无论你需要单张 A100 用于训练任务，还是需要一组 H100 用于分布式推理，控制台都会引导你完成每一项配置——GPU 类型、区域、预构建软件镜像以及存储，并在最终展示预估费用，让你的账单不会出现意外。
+
+<Note>
+  此处展示的启动向导反映了当前的控制台 UI。如果你的界面看起来有所不同，请查看 [Release Notes](/zh/faq) 了解最近的 UI 更新。
+</Note>
+
+## 前置条件
+
+在启动第一个实例前，请确认你已经具备：
+
+- 一个已验证付款方式的 GPU Cloud 账户
+- 已添加到账户的 SSH 密钥对（参见 [Account Setup](/zh/account-setup)）
+- 你想使用的 GPU 类型有足够的账户配额（可在 **Quota** 页面申请提额）
+
+## 启动实例
+
+<Steps>
+  <Step title="进入 Instances 页面">
+    登录 [GPU Cloud 控制台](https://console.gpucloud.com)。在左侧边栏点击 **Instances**。你会看到当前所有实例的列表（若这是首次使用，则显示为空状态）。
+  </Step>
+
+  <Step title="打开启动向导">
+    点击 Instances 页面右上角的 **Launch Instance** 按钮。启动向导会以整页形式打开，配置项由上到下依次排列。
+  </Step>
+
+  <Step title="选择 GPU 类型">
+    从硬件目录中选择适合你的工作负载的 GPU。每张卡片都会显示 GPU 型号、显存、vCPU 数量、内存以及按需小时价格。
+
+    | GPU | 显存 | 最佳用途 |
+    |-----|------|----------|
+    | NVIDIA H100 SXM | 80 GB | 大规模 LLM 训练、分布式工作负载 |
+    | NVIDIA A100 SXM | 80 GB | 通用 ML 训练、微调 |
+    | NVIDIA A100 PCIe | 40 GB | 推理、中等规模训练 |
+    | NVIDIA RTX 4090 | 24 GB | 开发、较小模型、渲染 |
+
+    点击你需要的 GPU 卡片即可选中。
+  </Step>
+
+  <Step title="选择区域">
+    选择离你的团队或数据存储最近的数据中心区域，以尽量降低延迟和出站流量费用。可用区域以带标签的卡片形式展示（例如 **US East**、**US West**、**EU Central**）。灰色区域表示暂时容量紧张——你可以启用 **Notify me when available** 以在有可用容量时收到邮件提醒。
+  </Step>
+
+  <Step title="选择磁盘镜像">
+    选择将在启动时写入实例根盘的操作系统与软件镜像。
+
+    <Tip>
+      **选择合适的镜像：** 如果你使用 PyTorch 做深度学习，请从 **PyTorch 2.1 / CUDA 12** 开始——它预装了 PyTorch、torchvision、torchaudio 以及常见的科学计算 Python 包，可为你节省 15–30 分钟的环境配置时间。以 TensorFlow 为主的工作流请选择 **TensorFlow 2.14 / CUDA 12**。仅当你需要干净的环境或安装预构建镜像中没有的框架版本时，才选择 **Ubuntu 22.04 (Bare)**。
+    </Tip>
+
+    | 镜像 | 包含内容 | 使用场景 |
+    |-------|----------|----------|
+    | PyTorch 2.1 / CUDA 12 | PyTorch、torchvision、Python 3.10、CUDA 12、cuDNN | PyTorch 训练与推理 |
+    | TensorFlow 2.14 / CUDA 12 | TensorFlow、Keras、Python 3.10、CUDA 12、cuDNN | TensorFlow 训练与推理 |
+    | Ubuntu 22.04 (Bare) | 仅 Ubuntu 22.04 LTS、NVIDIA 驱动 | 自定义技术栈、其他框架 |
+  </Step>
+
+  <Step title="设置存储大小">
+    使用存储滑块或直接输入数值，以 GB 为单位设置根盘大小。最小为 **50 GB**，根盘最大为 **2 TB**。存储按 GB/月计费（参见 [Billing & Costs](/zh/guides/billing-and-costs)）。
+
+    对于需要在任何单个实例生命周期之外保留的数据集和检查点，请挂载[持久卷](/zh/guides/persistent-storage)，而不是增大根盘。
+  </Step>
+
+  <Step title="选择你的 SSH 密钥">
+    从下拉列表中选择你之前上传到账户的某个 SSH 密钥。该密钥会被安装到实例上 `ubuntu` 用户的 `~/.ssh/authorized_keys` 中。
+
+    如果你尚未添加密钥，请点击 **Add SSH Key**，粘贴你的公钥，为其命名并保存——然后从下拉列表中选择它。
+  </Step>
+
+  <Step title="查看预估费用">
+    右侧摘要面板会随着你的选择实时更新。请查看：
+
+    - **Hourly rate** ——GPU 与算力的按秒计费率（以小时展示）
+    - **Storage cost** ——按当前配置的根盘大小计算的月度费用
+    - **Estimated monthly total** ——按每月 730 小时（100% 在线）估算
+
+    实际费用是从实例进入 **Running** 状态那一刻起，直到你停止或终止实例为止，按秒计费。
+  </Step>
+
+  <Step title="启动实例">
+    点击向导底部的 **Launch Instance** 按钮。GPU Cloud 会立即开始预配你的实例。Instances 列表会重新加载，你会看到新实例带着 **Provisioning** 状态标签，并会在 60–90 秒内转为 **Running**。
+
+    当状态显示为 **Running** 时，从实例行复制公网 IP 地址，然后[通过 SSH 连接](/zh/guides/connect-ssh)。
+  </Step>
+</Steps>
+
+## 启动之后会发生什么
+
+在你点击 **Launch** 后，GPU Cloud 会：
+
+1. 在你选择的区域分配一个物理 GPU 节点
+2. 将所选磁盘镜像写入 NVMe 根存储
+3. 注入你的 SSH 公钥
+4. 分配公网 IPv4 地址并配置防火墙以允许 SSH（22 端口）
+5. 启动实例并将其标记为 **Running**
+
+整个过程通常在两分钟内完成。
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="通过 SSH 连接" icon="terminal" href="/zh/guides/connect-ssh">
+    从本地机器登录你正在运行的实例。
+  </Card>
+  <Card title="运行 Jupyter Notebooks" icon="book-open" href="/zh/guides/jupyter-notebooks">
+    启动 Jupyter 服务器并在浏览器中访问。
+  </Card>
+  <Card title="挂载持久存储" icon="hard-drive" href="/zh/guides/persistent-storage">
+    挂载可在实例终止后依然存在的卷。
+  </Card>
+  <Card title="运行 Docker 容器" icon="docker" href="/zh/guides/docker-containers">
+    在实例上拉取并运行 GPU 加速容器。
+  </Card>
+</CardGroup>

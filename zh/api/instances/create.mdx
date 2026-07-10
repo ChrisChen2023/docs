@@ -1,0 +1,132 @@
+---
+title: "通过 REST API 配置一个新的 GPU Cloud 实例"
+sidebarTitle: "创建实例"
+description: "通过指定所需的 GPU 类型、区域、磁盘镜像和 SSH 密钥来配置新的 GPU 实例。创建完成后实例会立即开始启动。"
+---
+
+创建实例会在你选择的区域中配置一台专用 GPU 服务器，并立即开始启动流程。你必须提供 GPU 类型、区域、基础磁盘镜像，以及一个已在账户中注册的 SSH 密钥的 ID。一旦实例从 `pending` 转为 `running`——通常在几分钟内——你就可以使用响应中返回的 `ip_address` 通过 SSH 连接。
+
+## 端点
+
+```
+POST https://api.gpucloud.com/v1/instances
+```
+
+## 请求体
+
+<ParamField body="gpu_type" type="string" required>
+  要配置的 GPU 硬件类型。使用 [GPU 类型](/zh/concepts/gpu-types) 参考文档列出所有可用选项（例如 `h100-80gb-sxm`、`a100-40gb-pcie`）。
+</ParamField>
+
+<ParamField body="region" type="string" required>
+  启动实例所在的区域标识（例如 `us-east-1`、`eu-west-2`）。GPU 的可用性因区域而异。
+</ParamField>
+
+<ParamField body="disk_image" type="string" required>
+  用于启动实例的磁盘镜像标识符（例如 `pytorch-2.1-cuda-12`）。使用 [磁盘镜像](/zh/concepts/instances) 参考文档列出所有可用镜像。
+</ParamField>
+
+<ParamField body="ssh_key_id" type="string" required>
+  要在实例上授权的 SSH 公钥 ID。该密钥必须已在你的账户中注册。使用 [SSH 密钥](/zh/api/ssh-keys) 端点来管理你的密钥。
+</ParamField>
+
+<ParamField body="name" type="string">
+  为实例指定的人类可读标签。如果省略，GPU Cloud 会自动生成一个名称。最多 64 个字符；只允许字母、数字、连字符和下划线。
+</ParamField>
+
+<ParamField body="gpu_count" type="integer" default="1">
+  挂载到实例的 GPU 数量。必须是所选 `gpu_type` 支持的正整数。默认值为 `1`。
+</ParamField>
+
+<ParamField body="disk_size_gb" type="integer" default="50">
+  根磁盘大小（以 GB 为单位）。最小值为 `50`。更大的磁盘会产生额外的存储费用。
+</ParamField>
+
+## 响应字段
+
+成功的请求返回 `201 Created`，响应体中包含完整的实例对象。
+
+<ResponseField name="id" type="string">
+  分配给新实例的唯一标识符。
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  实例名称，可能是请求中提供的，也可能是自动生成的。
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  实例的初始状态，创建后始终为 `pending`。
+</ResponseField>
+
+<ResponseField name="gpu_type" type="string">
+  为实例配置的 GPU 硬件类型。
+</ResponseField>
+
+<ResponseField name="gpu_count" type="integer">
+  挂载到实例的 GPU 数量。
+</ResponseField>
+
+<ResponseField name="region" type="string">
+  实例启动所在的区域。
+</ResponseField>
+
+<ResponseField name="ip_address" type="string">
+  实例的公网 IPv4 地址。当实例仍处于 `pending` 状态时返回 `null`。
+</ResponseField>
+
+<ResponseField name="disk_image" type="string">
+  用于启动实例的磁盘镜像。
+</ResponseField>
+
+<ResponseField name="disk_size_gb" type="integer">
+  已配置的根磁盘大小（以 GB 为单位）。
+</ResponseField>
+
+<ResponseField name="ssh_key_id" type="string">
+  在实例上授权的 SSH 密钥 ID。
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  实例创建时间的 ISO 8601 时间戳。
+</ResponseField>
+
+<ResponseField name="hourly_cost_usd" type="number">
+  实例的每小时费用（以美元计）。计费从实例创建时立即开始。
+</ResponseField>
+
+## 示例请求
+
+```bash
+curl https://api.gpucloud.com/v1/instances \
+  -X POST \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gpu_type": "h100-80gb-sxm",
+    "region": "us-east-1",
+    "disk_image": "pytorch-2.1-cuda-12",
+    "ssh_key_id": "key_xyz789",
+    "name": "my-training-run",
+    "gpu_count": 1,
+    "disk_size_gb": 100
+  }'
+```
+
+## 示例响应
+
+```json
+{
+  "id": "inst_abc123",
+  "name": "my-training-run",
+  "status": "pending",
+  "gpu_type": "h100-80gb-sxm",
+  "gpu_count": 1,
+  "region": "us-east-1",
+  "ip_address": null,
+  "disk_image": "pytorch-2.1-cuda-12",
+  "disk_size_gb": 100,
+  "ssh_key_id": "key_xyz789",
+  "created_at": "2024-01-15T10:30:00Z",
+  "hourly_cost_usd": 3.50
+}
+```
