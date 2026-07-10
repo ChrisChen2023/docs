@@ -194,5 +194,50 @@
       "label": "Console",
       "href": "https://console.gpucloud.com"
     }
+  },
+  "markdown": {
+    "schema": true
+  },
+  "api": {
+    "params": {
+      "expanded": "all"
+    },
+    "playground": {
+      "display": "interactive"
+    },
+    "examples": {
+      "defaults": "all",
+      "languages": [
+        "",
+        "python"
+      ],
+      "prefill": true,
+      "autogenerate": true
+    },
+    "url": "full",
+    "mdx": {
+      "auth": {
+        "method": "bearer"
+      }
+    }
+  },
+  "interaction": {
+    "drilldown": true
+  },
+  "contextual": {
+    "options": [
+      "view",
+      "download-pdf",
+      "copy"
+    ],
+    "display": "header"
+  },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "light": "catppuccin-macchiato",
+        "dark": "dark-plus"
+      }
+    }
   }
 }
