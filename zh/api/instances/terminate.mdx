@@ -4,7 +4,7 @@ sidebarTitle: "终止实例"
 description: "通过 ID 永久关闭并删除 GPU 实例。计费立即停止。实例上的所有临时数据将被不可逆地销毁。"
 ---
 
-终止实例会将其关闭，将底层硬件释放回资源池，并立即停止计费。你通过在 URL 路径中传入实例 ID 来指定要终止的实例。成功的请求返回 `204 No Content`，响应体为空——你无需再进行任何操作。
+终止实例会将其关闭，将底层硬件释放回资源池，并立即停止计费。你通过在 URL 路径中传入实例 ID 来指定要终止的实例。成功的请求返回 `204 No Content`，响应体为空 —— 你无需再进行任何操作。
 
 <Warning>
   **终止是永久性的，无法撤销。** 一旦你发送此请求，实例临时磁盘上存储的所有数据将立即且不可逆地被销毁。任何未保存到外部持久存储（例如对象存储或已挂载卷）的工作都将永久丢失。请务必在终止前备份好所需的文件、模型检查点或数据集。
@@ -28,7 +28,7 @@ DELETE https://api.gpucloud.com/v1/instances/{id}
 
 如果实例 ID 不存在或不属于你的账户，API 返回 `404 Not Found`。如果实例已处于 `stopping` 或 `terminated` 状态，API 返回 `409 Conflict`。
 
-## 示例请求
+## 请求示例
 
 ```bash
 curl https://api.gpucloud.com/v1/instances/inst_abc123 \
@@ -36,7 +36,7 @@ curl https://api.gpucloud.com/v1/instances/inst_abc123 \
   -H "Authorization: Bearer <api-key>"
 ```
 
-## 示例响应
+## 响应示例
 
 ```
 HTTP/1.1 204 No Content

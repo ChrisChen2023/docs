@@ -4,7 +4,7 @@ sidebarTitle: "持久存储"
 description: "在 GPU Cloud 上创建 NVMe 卷，将其挂载到实例、格式化并挂载文件系统，然后重新附加到新实例，让你的数据在会话之间保持安全。"
 ---
 
-默认情况下，GPU Cloud 实例的根盘是临时的——它只在该实例生命周期内存在。持久卷是独立于任何实例的块存储设备。你可以将卷挂载到一个实例、填入数据集和模型检查点、分离，然后再挂载到完全不同的实例，而不会丢失任何一个字节。因此，需要在单次计算会话之外保留的任何内容，都应存放在持久卷上。
+默认情况下，GPU Cloud 实例的根盘是临时的 —— 它只在该实例生命周期内存在。持久卷是独立于任何实例的块存储设备。你可以将卷挂载到一个实例、填入数据集和模型检查点、分离，然后再挂载到完全不同的实例，而不会丢失任何一个字节。因此，需要在单次计算会话之外保留的任何内容，都应存放在持久卷上。
 
 ## 卷类型
 
@@ -31,10 +31,10 @@ GPU Cloud 提供两种卷类型：
   <Step title="配置卷">
     填写创建表单：
 
-    - **Name** ——一个描述性的标签（例如 `imagenet-dataset`）
-    - **Region** ——必须与你打算挂载它的实例所在区域一致
-    - **Type** ——NVMe SSD 或 Network-Attached
-    - **Size** ——以 GB 为单位（最小 10 GB，最大 64 TB）
+    - **Name** —— 一个描述性的标签（例如 `imagenet-dataset`）
+    - **Region** —— 必须与你打算挂载它的实例所在区域一致
+    - **Type** —— NVMe SSD 或 Network-Attached
+    - **Size** —— 以 GB 为单位（最小 10 GB，最大 64 TB）
 
     点击 **Create Volume**。卷会在几秒内以 **Available** 状态出现在列表中。
   </Step>
@@ -52,7 +52,7 @@ GPU Cloud 提供两种卷类型：
   <Step title="挂载卷">
     点击 **Storage** 标签，然后点击 **Attach Volume**。从下拉列表中选择你的卷并点击 **Attach**。
 
-    控制台会将该卷显示为 **Attached**，并显示分配的设备名，例如 `/dev/vdb` 或 `/dev/nvme1n1`。请记下这个设备路径——下一步会用到。
+    控制台会将该卷显示为 **Attached**，并显示分配的设备名，例如 `/dev/vdb` 或 `/dev/nvme1n1`。请记下这个设备路径 —— 下一步会用到。
   </Step>
 </Steps>
 
@@ -103,7 +103,7 @@ GPU Cloud 提供两种卷类型：
     sudo mkdir -p /mnt/data
     ```
 
-    你可以使用任意路径—— `/mnt/data`、`/data`、`/home/ubuntu/datasets` 等。
+    你可以使用任意路径 —— `/mnt/data`、`/data`、`/home/ubuntu/datasets` 等。
   </Step>
 
   <Step title="挂载卷">
@@ -208,7 +208,7 @@ GPU Cloud 提供两种卷类型：
   </Step>
 
   <Step title="挂载已有的文件系统">
-    通过 SSH 登录新实例。使用 `lsblk` 确认设备名，然后挂载它——无需格式化：
+    通过 SSH 登录新实例。使用 `lsblk` 确认设备名，然后挂载它 —— 无需格式化：
 
     ```bash
     sudo mkdir -p /mnt/data
