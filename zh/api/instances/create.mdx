@@ -4,7 +4,7 @@ sidebarTitle: "创建实例"
 description: "通过指定所需的 GPU 类型、区域、磁盘镜像和 SSH 密钥来配置新的 GPU 实例。创建完成后实例会立即开始启动。"
 ---
 
-创建实例会在你选择的区域中配置一台专用 GPU 服务器，并立即开始启动流程。你必须提供 GPU 类型、区域、基础磁盘镜像，以及一个已在账户中注册的 SSH 密钥的 ID。一旦实例从 `pending` 转为 `running`——通常在几分钟内——你就可以使用响应中返回的 `ip_address` 通过 SSH 连接。
+创建实例会在你选择的区域中配置一台专用 GPU 服务器，并立即开始启动流程。你必须提供 GPU 类型、区域、基础磁盘镜像，以及一个已在账户中注册的 SSH 密钥的 ID。一旦实例从 `pending` 转为 `running` —— 通常在几分钟内 —— 你就可以使用响应中返回的 `ip_address` 通过 SSH 连接。
 
 ## 端点
 
@@ -94,7 +94,7 @@ POST https://api.gpucloud.com/v1/instances
   实例的每小时费用（以美元计）。计费从实例创建时立即开始。
 </ResponseField>
 
-## 示例请求
+## 请求示例
 
 ```bash
 curl https://api.gpucloud.com/v1/instances \
@@ -112,7 +112,7 @@ curl https://api.gpucloud.com/v1/instances \
   }'
 ```
 
-## 示例响应
+## 响应示例
 
 ```json
 {
