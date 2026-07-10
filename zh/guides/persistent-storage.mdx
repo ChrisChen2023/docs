@@ -1,0 +1,246 @@
+---
+title: "在 GPU Cloud 上创建和管理持久存储卷"
+sidebarTitle: "持久存储"
+description: "在 GPU Cloud 上创建 NVMe 卷，将其挂载到实例、格式化并挂载文件系统，然后重新附加到新实例，让你的数据在会话之间保持安全。"
+---
+
+默认情况下，GPU Cloud 实例的根盘是临时的——它只在该实例生命周期内存在。持久卷是独立于任何实例的块存储设备。你可以将卷挂载到一个实例、填入数据集和模型检查点、分离，然后再挂载到完全不同的实例，而不会丢失任何一个字节。因此，需要在单次计算会话之外保留的任何内容，都应存放在持久卷上。
+
+## 卷类型
+
+GPU Cloud 提供两种卷类型：
+
+| 类型 | 延迟 | 最佳用途 |
+|------|---------|----------|
+| **NVMe SSD** | < 0.1 ms | 高吞吐训练 I/O、大型数据集 |
+| **Network-Attached** | 1–5 ms | 共享访问、归档、注重成本的存储 |
+
+<Tip>
+  对于会执行大量小规模随机读取（例如加载图像批次）的活跃训练工作负载，请始终选择 **NVMe SSD**。Network-attached 卷更适合存放已完成的检查点以及不频繁访问的数据。
+</Tip>
+
+---
+
+## 工作流 1 —— 创建卷
+
+<Steps>
+  <Step title="打开 Volumes 页面">
+    登录 [GPU Cloud 控制台](https://console.gpucloud.com)。在左侧边栏点击 **Storage → Volumes**。点击右上角的 **Create Volume**。
+  </Step>
+
+  <Step title="配置卷">
+    填写创建表单：
+
+    - **Name** ——一个描述性的标签（例如 `imagenet-dataset`）
+    - **Region** ——必须与你打算挂载它的实例所在区域一致
+    - **Type** ——NVMe SSD 或 Network-Attached
+    - **Size** ——以 GB 为单位（最小 10 GB，最大 64 TB）
+
+    点击 **Create Volume**。卷会在几秒内以 **Available** 状态出现在列表中。
+  </Step>
+</Steps>
+
+---
+
+## 工作流 2 —— 将卷挂载到实例
+
+<Steps>
+  <Step title="打开实例详情">
+    进入 **Instances**，点击一个与卷同区域、状态为 **Running** 或 **Stopped** 的实例名称。
+  </Step>
+
+  <Step title="挂载卷">
+    点击 **Storage** 标签，然后点击 **Attach Volume**。从下拉列表中选择你的卷并点击 **Attach**。
+
+    控制台会将该卷显示为 **Attached**，并显示分配的设备名，例如 `/dev/vdb` 或 `/dev/nvme1n1`。请记下这个设备路径——下一步会用到。
+  </Step>
+</Steps>
+
+---
+
+## 工作流 3 —— 格式化并挂载新卷
+
+**首次**使用全新卷时通过 SSH 运行这些命令。**不要**重新格式化已包含数据的卷。
+
+<Steps>
+  <Step title="确认设备路径">
+    通过 SSH 登录实例并列出块设备，确认已挂载卷的设备名：
+
+    ```bash
+    lsblk
+    ```
+
+    输出类似：
+
+    ```
+    NAME        MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+    vda         252:0    0    50G  0 disk
+    └─vda1      252:1    0    50G  0 part /
+    vdb         252:16   0   500G  0 disk
+    ```
+
+    在本例中，新卷是 `/dev/vdb`（尚无分区或挂载点）。
+  </Step>
+
+  <Step title="格式化卷">
+    使用 ext4 文件系统格式化该卷：
+
+    ```bash
+    sudo mkfs.ext4 /dev/vdb
+    ```
+
+    对于小卷需要几秒钟，对于大于 1 TB 的卷可能需要最多一分钟。
+
+    <Warning>
+      **这会永久擦除设备上的所有数据。** 仅在全新的空卷上运行 `mkfs.ext4`。如果你正在重新挂载一个已包含文件系统和数据的卷，请跳过此步骤，直接挂载。
+    </Warning>
+  </Step>
+
+  <Step title="创建挂载点">
+    创建一个用于访问卷的目录：
+
+    ```bash
+    sudo mkdir -p /mnt/data
+    ```
+
+    你可以使用任意路径—— `/mnt/data`、`/data`、`/home/ubuntu/datasets` 等。
+  </Step>
+
+  <Step title="挂载卷">
+    将格式化后的卷挂载到你选择的目录：
+
+    ```bash
+    sudo mount /dev/vdb /mnt/data
+    ```
+
+    验证挂载成功：
+
+    ```bash
+    df -h /mnt/data
+    ```
+
+    预期输出：
+
+    ```
+    Filesystem      Size  Used Avail Use% Mounted on
+    /dev/vdb        493G   28K  468G   1% /mnt/data
+    ```
+  </Step>
+
+  <Step title="修复所有权">
+    默认情况下，已挂载的卷归 `root` 所有。将写权限授予 `ubuntu` 用户：
+
+    ```bash
+    sudo chown -R ubuntu:ubuntu /mnt/data
+    ```
+  </Step>
+
+  <Step title="配置开机自动挂载（可选）">
+    要让实例每次启动时自动挂载该卷，请在 `/etc/fstab` 中添加一行。首先获取卷的 UUID：
+
+    ```bash
+    sudo blkid /dev/vdb
+    ```
+
+    输出：
+
+    ```
+    /dev/vdb: UUID="a1b2c3d4-e5f6-7890-abcd-ef1234567890" TYPE="ext4"
+    ```
+
+    使用文本编辑器打开 `/etc/fstab`：
+
+    ```bash
+    sudo nano /etc/fstab
+    ```
+
+    在文件末尾添加下面一行，用你自己的 UUID 替换示例：
+
+    ```text
+    UUID=a1b2c3d4-e5f6-7890-abcd-ef1234567890  /mnt/data  ext4  defaults,nofail  0  2
+    ```
+
+    `nofail` 选项可确保在卷未挂载时实例仍能正常启动。
+
+    在不重启的情况下测试 fstab 条目：
+
+    ```bash
+    sudo mount -a
+    ```
+
+    没有输出即表示成功。
+  </Step>
+</Steps>
+
+---
+
+## 工作流 4 —— 分离卷
+
+<Steps>
+  <Step title="在实例上卸载卷">
+    在控制台中分离之前，请卸载文件系统以防数据损坏：
+
+    ```bash
+    sudo umount /mnt/data
+    ```
+
+    如果出现 "device is busy" 错误，查找占用它的进程：
+
+    ```bash
+    lsof +D /mnt/data
+    ```
+
+    停止或迁移这些进程后重新执行 `umount`。
+  </Step>
+
+  <Step title="在控制台中分离">
+    在 GPU Cloud 控制台中打开实例的 **Storage** 标签，找到该卷并点击 **Detach**。几秒内卷状态会恢复为 **Available**。
+  </Step>
+</Steps>
+
+---
+
+## 工作流 5 —— 将卷重新挂载到另一个实例
+
+<Steps>
+  <Step title="挂载到新实例">
+    按照上面的**工作流 2**，将 **Available** 卷挂载到同区域的任意其他运行实例。
+  </Step>
+
+  <Step title="挂载已有的文件系统">
+    通过 SSH 登录新实例。使用 `lsblk` 确认设备名，然后挂载它——无需格式化：
+
+    ```bash
+    sudo mkdir -p /mnt/data
+    sudo mount /dev/vdb /mnt/data
+    sudo chown -R ubuntu:ubuntu /mnt/data
+    ```
+
+    所有文件立刻可以在 `/mnt/data` 访问。
+  </Step>
+</Steps>
+
+---
+
+## 查看卷使用情况
+
+随时监控已挂载卷的磁盘使用情况：
+
+```bash
+# 挂载点的可读性摘要
+df -h /mnt/data
+
+# 按子目录查看磁盘使用（适合大型数据集目录）
+du -sh /mnt/data/*
+```
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="计费与费用" icon="credit-card" href="/zh/guides/billing-and-costs">
+    了解持久卷存储如何按 GB/月计费。
+  </Card>
+  <Card title="Docker 容器" icon="docker" href="/zh/guides/docker-containers">
+    将持久卷挂载到 Docker 容器用于训练工作负载。
+  </Card>
+</CardGroup>

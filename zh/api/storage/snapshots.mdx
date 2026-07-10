@@ -1,0 +1,159 @@
+---
+title: "管理 GPU Cloud 持久化存储的卷快照"
+sidebarTitle: "快照"
+description: "为你的 GPU Cloud 卷创建时间点快照，用于备份数据集、保留实验状态，并在需要时恢复数据。"
+---
+
+快照可以在特定时间点捕获卷的确切内容，为你提供一种可靠的方式，在执行破坏性操作之前备份工作、在训练运行前保留干净的基线，或在多个卷之间复制数据。快照独立于源卷存储，因此即使原始卷之后被删除，快照依然会保留。当你需要恢复数据时，可以将其还原到一个新的卷。
+
+<Note>
+  快照的创建是异步进行的。根据源卷的大小，该过程可能需要几分钟才能完成。请轮询快照的 `status` 字段，直到其变为 `available` 后再使用该快照。
+</Note>
+
+---
+
+## 列出快照
+
+获取你账户中的所有快照。
+
+### 端点
+
+```
+GET https://api.gpucloud.com/v1/storage/snapshots
+```
+
+### 请求
+
+此端点不接受请求体或查询参数。
+
+### 响应字段
+
+<ResponseField name="id" type="string">
+  快照的唯一标识符（例如 `snap_ghi012`）。
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  在创建时为该快照指定的可读名称。
+</ResponseField>
+
+<ResponseField name="volume_id" type="string">
+  该快照来源卷的 ID。
+</ResponseField>
+
+<ResponseField name="size_gb" type="integer">
+  快照的大小，单位为 GB，与源卷的容量一致。
+</ResponseField>
+
+<ResponseField name="region" type="string">
+  快照存储所在的区域，继承自源卷。
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  快照的当前状态。可能的值：`creating`（快照仍在生成中）、`available`（可使用）。
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 时间戳，表示快照发起的时间。
+</ResponseField>
+
+### 请求示例
+
+```bash
+curl https://api.gpucloud.com/v1/storage/snapshots \
+  -H "Authorization: Bearer <api-key>"
+```
+
+### 响应示例
+
+```json
+[
+  {
+    "id": "snap_ghi012",
+    "name": "pre-training-snapshot",
+    "volume_id": "vol_def456",
+    "size_gb": 500,
+    "region": "us-east-1",
+    "status": "available",
+    "created_at": "2024-01-14T12:00:00Z"
+  }
+]
+```
+
+---
+
+## 创建快照
+
+为现有卷捕获一个时间点快照。无论卷是否已附加到实例，你都可以为其创建快照。
+
+### 端点
+
+```
+POST https://api.gpucloud.com/v1/storage/snapshots
+```
+
+### 请求体
+
+<ParamField body="name" type="string" required>
+  快照的描述性名称（例如 `"pre-training-snapshot"`）。选择一个易于识别快照捕获时数据状态的名称。
+</ParamField>
+
+<ParamField body="volume_id" type="string" required>
+  你要为其创建快照的卷 ID。可以通过 [列出存储卷](/zh/api/storage/volumes) 端点查找卷 ID。
+</ParamField>
+
+### 响应字段
+
+响应是一个快照对象。请参见上方 [列出快照](#list-snapshots) 中的字段说明。`status` 字段最初为 `creating`；请轮询端点直至其变为 `available`。
+
+### 请求示例
+
+```bash
+curl -X POST https://api.gpucloud.com/v1/storage/snapshots \
+  -H "Authorization: Bearer <api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "pre-training-snapshot",
+    "volume_id": "vol_def456"
+  }'
+```
+
+### 响应示例
+
+```json
+{
+  "id": "snap_ghi012",
+  "name": "pre-training-snapshot",
+  "volume_id": "vol_def456",
+  "size_gb": 500,
+  "region": "us-east-1",
+  "status": "creating",
+  "created_at": "2024-01-14T12:00:00Z"
+}
+```
+
+---
+
+## 删除快照
+
+永久删除不再需要的快照。此操作不可逆——删除后无法恢复所捕获的数据。
+
+### 端点
+
+```
+DELETE https://api.gpucloud.com/v1/storage/snapshots/{id}
+```
+
+将快照的唯一 ID 作为路径参数提供。删除成功时返回 `204 No Content`，响应体为空。
+
+### 请求示例
+
+```bash
+curl -X DELETE https://api.gpucloud.com/v1/storage/snapshots/snap_ghi012 \
+  -H "Authorization: Bearer <api-key>"
+```
+
+### 响应示例
+
+```
+HTTP/1.1 204 No Content
+```

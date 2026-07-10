@@ -1,0 +1,382 @@
+---
+title: "GPU Cloud CLI 命令：完整参考与示例"
+sidebarTitle: "命令"
+description: "gpucloud CLI 所有命令的完整参考，包括 instance、volume、ssh-key 和 config 子命令的参数、标志和用法示例。"
+---
+
+`gpucloud` CLI 按资源类型划分为若干命令组。本页涵盖每个可用命令，包括必填参数、可选标志以及真实的示例输出。你可以随时运行 `gpucloud <command> --help` 打印任意子命令的内联文档。
+
+<Note>
+  所有命令都需要认证。在使用前请运行 `gpucloud auth login` 或设置 `GPUCLOUD_API_KEY` 环境变量。相关设置说明请参见 [CLI 概览](/zh/cli/overview)。
+</Note>
+
+---
+
+<AccordionGroup>
+
+  <Accordion title="instance —— 管理 GPU 实例" icon="server">
+
+    `instance` 组允许你创建、查看、连接和终止 GPU 计算实例。
+
+    ### 命令摘要
+
+    | 命令 | 参数 | 标志 | 描述 |
+    |---|---|---|---|
+    | `instance list` | — | `--status`、`--region` | 列出账户中的所有实例 |
+    | `instance create` | — | `--gpu`、`--region`、`--image`、`--disk`、`--name`、`--ssh-key` | 预配一台新的 GPU 实例 |
+    | `instance get` | `<id>` | — | 获取单个实例的完整详情 |
+    | `instance terminate` | `<id>` | `--force` | 永久终止一台实例 |
+    | `instance ssh` | `<id>` | `--user`、`--key` | 打开交互式 SSH 会话 |
+
+    ---
+
+    ### `instance list`
+
+    列出账户中的所有实例，包括当前状态、GPU 类型和区域。
+
+    ```bash
+    gpucloud instance list
+    ```
+
+    ```
+    ID              NAME            GPU       REGION       STATUS     IP
+    i-a1b2c3d4      training-run    H100      us-east-1    running    203.0.113.42
+    i-e5f6g7h8      dev-workspace   RTX4090   us-west-2    stopped    —
+    i-i9j0k1l2      inference-api   A100      eu-west-2    running    203.0.113.87
+    ```
+
+    按状态或区域筛选：
+
+    ```bash
+    gpucloud instance list --status running --region us-east-1
+    ```
+
+    ---
+
+    ### `instance create`
+
+    预配一台新的 GPU 实例。CLI 会打印新实例 ID 并轮询直到实例进入 `running` 状态。
+
+    ```bash
+    gpucloud instance create \
+      --gpu h100 \
+      --region us-east-1 \
+      --image pytorch-2.1 \
+      --disk 100 \
+      --name training-run \
+      --ssh-key mykey
+    ```
+
+    ```
+    ✓ Instance i-a1b2c3d4 created
+    ⠸ Waiting for instance to start...
+    ✓ Instance running at 203.0.113.42
+    ```
+
+    **标志：**
+
+    | 标志 | 是否必填 | 描述 |
+    |---|---|---|
+    | `--gpu` | 是 | GPU 类型：`h100`、`a100`、`rtx4090` 等 |
+    | `--region` | 是 | 部署到的区域，例如 `us-east-1` |
+    | `--image` | 是 | 磁盘镜像名称，例如 `pytorch-2.1`、`tensorflow-2.14`、`cuda-12.2` |
+    | `--disk` | 否 | 根盘大小（GB，默认 `50`） |
+    | `--name` | 否 | 实例的可读标签 |
+    | `--ssh-key` | 否 | 要授权的已存储 SSH 密钥名称 |
+
+    <Tip>
+      运行 `gpucloud instance create --help` 可查看所选区域下所有可用的 GPU 类型和磁盘镜像。
+    </Tip>
+
+    ---
+
+    ### `instance get`
+
+    通过 ID 获取单个实例的完整元数据。
+
+    ```bash
+    gpucloud instance get i-a1b2c3d4
+    ```
+
+    ```
+    ID:          i-a1b2c3d4
+    Name:        training-run
+    GPU:         H100 (80GB)
+    vCPUs:       16
+    RAM:         120 GB
+    Disk:        100 GB NVMe
+    Region:      us-east-1
+    Image:       pytorch-2.1
+    Status:      running
+    IP:          203.0.113.42
+    Created:     2024-11-01T09:32:00Z
+    Uptime:      3h 14m
+    ```
+
+    ---
+
+    ### `instance terminate`
+
+    永久销毁一台实例并释放所有关联资源。此操作不可撤销。
+
+    ```bash
+    gpucloud instance terminate i-a1b2c3d4
+    ```
+
+    ```
+    ⚠ This will permanently terminate instance i-a1b2c3d4 (training-run). Continue? [y/N]: y
+    ✓ Instance i-a1b2c3d4 terminated
+    ```
+
+    在脚本中使用 `--force` 跳过确认提示：
+
+    ```bash
+    gpucloud instance terminate i-a1b2c3d4 --force
+    ```
+
+    <Warning>
+      终止实例会永久删除其根盘。任何未保存到持久卷的数据都将丢失。如果需要保留工作，请先挂载卷再终止。
+    </Warning>
+
+    ---
+
+    ### `instance ssh`
+
+    对运行中的实例打开交互式 SSH 会话。CLI 会自动解析实例 IP 和密钥。
+
+    ```bash
+    gpucloud instance ssh i-a1b2c3d4
+    ```
+
+    ```
+    Connecting to 203.0.113.42 as ubuntu...
+    Welcome to GPU Cloud — H100 instance
+    ubuntu@i-a1b2c3d4:~$
+    ```
+
+    覆盖登录用户或指定本地密钥文件：
+
+    ```bash
+    gpucloud instance ssh i-a1b2c3d4 --user root --key ~/.ssh/custom_key
+    ```
+
+  </Accordion>
+
+  <Accordion title="ssh-key —— 管理 SSH 密钥" icon="key">
+
+    `ssh-key` 组管理 GPU Cloud 在创建新实例时注入的公钥。
+
+    ### 命令摘要
+
+    | 命令 | 参数 | 标志 | 描述 |
+    |---|---|---|---|
+    | `ssh-key list` | — | — | 列出所有已存储的 SSH 密钥 |
+    | `ssh-key add` | — | `--name`、`--public-key-file` | 上传新的公钥 |
+    | `ssh-key delete` | `<id>` | `--force` | 移除已存储的 SSH 密钥 |
+
+    ---
+
+    ### `ssh-key list`
+
+    显示保存到账户的所有公钥。
+
+    ```bash
+    gpucloud ssh-key list
+    ```
+
+    ```
+    ID          NAME           FINGERPRINT                                      CREATED
+    key-001     mykey          SHA256:abc123def456...                            2024-10-15
+    key-002     laptop-key     SHA256:xyz789uvw012...                            2024-10-28
+    ```
+
+    ---
+
+    ### `ssh-key add`
+
+    从本地文件上传公钥。密钥将可用于挂载到新实例。
+
+    ```bash
+    gpucloud ssh-key add \
+      --name mykey \
+      --public-key-file ~/.ssh/id_rsa.pub
+    ```
+
+    ```
+    ✓ SSH key 'mykey' added (ID: key-001)
+    ```
+
+    也可以内联粘贴密钥：
+
+    ```bash
+    gpucloud ssh-key add --name ci-key --public-key "ssh-ed25519 AAAAC3Nza..."
+    ```
+
+    ---
+
+    ### `ssh-key delete`
+
+    按 ID 从账户中移除公钥。此操作不会影响已经安装该密钥的运行中实例。
+
+    ```bash
+    gpucloud ssh-key delete key-001
+    ```
+
+    ```
+    ✓ SSH key key-001 deleted
+    ```
+
+  </Accordion>
+
+  <Accordion title="volume —— 管理持久卷" icon="database">
+
+    `volume` 组管理持久存储卷——它们在实例终止后仍然存在，并可在实例之间迁移。
+
+    ### 命令摘要
+
+    | 命令 | 参数 | 标志 | 描述 |
+    |---|---|---|---|
+    | `volume list` | — | `--region` | 列出账户中的所有卷 |
+    | `volume create` | — | `--name`、`--size`、`--region` | 创建新的持久卷 |
+    | `volume attach` | `<volume-id> <instance-id>` | `--mount-path` | 将卷挂载到运行中的实例 |
+    | `volume detach` | `<volume-id>` | `--force` | 从实例上分离卷 |
+
+    ---
+
+    ### `volume list`
+
+    列出所有持久卷及其挂载状态。
+
+    ```bash
+    gpucloud volume list
+    ```
+
+    ```
+    ID          NAME        SIZE    REGION       STATUS      ATTACHED TO
+    vol-001     mydata      100GB   us-east-1    attached    i-a1b2c3d4
+    vol-002     checkpts    500GB   us-east-1    available   —
+    vol-003     datasets    1TB     eu-west-2    available   —
+    ```
+
+    ---
+
+    ### `volume create`
+
+    在指定区域创建一个新的 NVMe 持久卷。
+
+    ```bash
+    gpucloud volume create \
+      --name mydata \
+      --size 100 \
+      --region us-east-1
+    ```
+
+    ```
+    ✓ Volume vol-001 (mydata, 100GB) created in us-east-1
+    ```
+
+    **标志：**
+
+    | 标志 | 是否必填 | 描述 |
+    |---|---|---|
+    | `--name` | 是 | 卷的可读标签 |
+    | `--size` | 是 | 大小（GB） |
+    | `--region` | 是 | 创建卷所在的区域 |
+
+    <Note>
+      卷只能挂载到同区域的实例。请在与目标实例相同的区域创建卷。
+    </Note>
+
+    ---
+
+    ### `volume attach`
+
+    将可用的卷挂载到运行中的实例。卷会在实例内作为块设备出现。
+
+    ```bash
+    gpucloud volume attach vol-001 i-a1b2c3d4
+    ```
+
+    ```
+    ✓ Volume vol-001 attached to i-a1b2c3d4 at /dev/vdb
+    Mount with: sudo mount /dev/vdb /mnt/data
+    ```
+
+    指定自定义挂载路径：
+
+    ```bash
+    gpucloud volume attach vol-001 i-a1b2c3d4 --mount-path /mnt/mydata
+    ```
+
+    ---
+
+    ### `volume detach`
+
+    从当前实例安全地分离卷。请先在实例内卸载文件系统。
+
+    ```bash
+    gpucloud volume detach vol-001
+    ```
+
+    ```
+    ✓ Volume vol-001 detached and available
+    ```
+
+    <Warning>
+      在运行 `volume detach` 之前，务必先在实例内卸载卷（`sudo umount /mnt/data`）。在未卸载的情况下分离已挂载的卷可能导致数据损坏。
+    </Warning>
+
+  </Accordion>
+
+  <Accordion title="config —— 管理 CLI 配置" icon="gear">
+
+    `config` 组存储 CLI 的持久性偏好设置，让你无需每次命令都重复常用参数。
+
+    ### 命令摘要
+
+    | 命令 | 参数 | 描述 |
+    |---|---|---|
+    | `config set` | `<key> <value>` | 设置配置项的值 |
+    | `config get` | `<key>` | 读取配置项的值 |
+    | `config list` | — | 显示所有当前配置 |
+
+    ---
+
+    ### `config set` / `config get`
+
+    一次性设置默认区域和输出格式，CLI 会自动使用它们：
+
+    ```bash
+    gpucloud config set region us-east-1
+    gpucloud config set output json
+    ```
+
+    读取指定值：
+
+    ```bash
+    gpucloud config get region
+    ```
+
+    ```
+    us-east-1
+    ```
+
+    ---
+
+    ### `config list`
+
+    显示完整的当前配置：
+
+    ```bash
+    gpucloud config list
+    ```
+
+    ```
+    region:    us-east-1
+    output:    table
+    api_url:   https://api.gpucloud.com/v1
+    ```
+
+  </Accordion>
+
+</AccordionGroup>

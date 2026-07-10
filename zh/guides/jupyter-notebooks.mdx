@@ -1,0 +1,164 @@
+---
+title: "在 GPU Cloud 实例上运行交互式 Jupyter Notebooks"
+sidebarTitle: "Jupyter Notebooks"
+description: "在 GPU Cloud 实例上启动 Jupyter Notebook 服务器，通过 SSH 转发端口，并在本地浏览器中打开进行交互式开发。"
+---
+
+Jupyter Notebooks 是最流行的交互式机器学习开发环境之一，直接在 GPU Cloud 实例上运行可以让你通过熟悉的浏览器界面完全访问 GPU。工作流程很简单：在实例上启动 Jupyter 服务器，创建一条安全的 SSH 隧道将端口转发到你的笔记本电脑，然后在浏览器中打开 `localhost:8888`——就像 Jupyter 运行在本地一样。
+
+## 前置条件
+
+- 一个状态为 **Running** 的 GPU Cloud 实例（[在此启动一个](/zh/guides/launch-instance)）
+- 本地机器已配置 SSH 访问（[SSH 指南](/zh/guides/connect-ssh)）
+- 实例上已安装 Jupyter——预构建的 PyTorch 和 TensorFlow 镜像包含 JupyterLab；bare Ubuntu 镜像需要手动安装（下面会讲解）
+
+## 步骤 1 —— SSH 登录到你的实例
+
+打开一个终端并连接到实例：
+
+```bash
+ssh -i ~/.ssh/your_key ubuntu@<ip-address>
+```
+
+保持此终端打开。你将用它来启动 Jupyter 并保持其运行。
+
+## 步骤 2 —— 安装 Jupyter（仅限 bare 镜像）
+
+如果你使用 **Ubuntu 22.04 (Bare)** 镜像启动实例，现在需要安装 JupyterLab。预构建的 PyTorch 和 TensorFlow 镜像已经包含它——请直接跳到步骤 3。
+
+```bash
+pip install jupyterlab
+```
+
+<Note>
+  如果在 bare 镜像上找不到 `pip`，请先运行 `sudo apt-get update && sudo apt-get install -y python3-pip` 安装它，然后再执行上面的命令。
+</Note>
+
+## 步骤 3 —— 启动 Jupyter 服务器
+
+在 `8888` 端口启动 JupyterLab，仅绑定到 localhost（这样不会直接暴露到互联网上）：
+
+```bash
+jupyter lab \
+  --no-browser \
+  --port=8888 \
+  --ip=127.0.0.1
+```
+
+Jupyter 会输出若干行内容，最后是一个包含 token 的 URL，例如：
+
+```
+http://127.0.0.1:8888/lab?token=abc123def456...
+```
+
+**复制包含 token 的完整 URL** ——你会在步骤 5 中用到它。保持此终端会话运行。如果希望在断开连接后 Jupyter 依然存活，请在 `tmux` 或 `screen` 中启动它：
+
+```bash
+tmux new -s jupyter
+jupyter lab --no-browser --port=8888 --ip=127.0.0.1
+# 按 Ctrl-B 然后 D 进行分离；tmux 会在后台保持 Jupyter 运行
+```
+
+<Warning>
+  **务必使用 token 或密码保护 Jupyter。** 默认情况下，JupyterLab 会为每次启动生成一次性 token。切勿在云实例上使用 `--NotebookApp.token=''` 或 `--no-auth` 启动 Jupyter——这样会导致任何能访问该端口的人都能获得一个无鉴权的代码执行环境。如果你希望使用固定密码代替轮换 token，请运行一次 `jupyter lab password` 进行设置，然后重启服务器。
+</Warning>
+
+## 步骤 4 —— 创建 SSH 隧道
+
+在**本地机器上一个新的、独立的终端窗口**（不是 SSH 会话）中运行：
+
+```bash
+ssh -L 8888:localhost:8888 -i ~/.ssh/your_key ubuntu@<ip-address> -N
+```
+
+| 参数 | 含义 |
+|------|---------|
+| `-L 8888:localhost:8888` | 将本地 8888 端口转发到远程 8888 端口 |
+| `-N` | 不执行远程命令；仅保持隧道开启 |
+
+此命令看起来像卡住了——这是正常的。只要此终端保持打开，隧道就处于活动状态。
+
+<Tip>
+  如果笔记本电脑上的 `8888` 端口已被占用，请更换本地端口号。例如 `-L 9999:localhost:8888` 可以让你在浏览器中通过 `localhost:9999` 打开 Jupyter。
+</Tip>
+
+如果你更喜欢用一条命令同时打开 shell **并**创建隧道，可以使用：
+
+```bash
+ssh -L 8888:localhost:8888 -i ~/.ssh/your_key ubuntu@<ip-address>
+```
+
+省略 `-N` 会在转发端口的同时打开一个交互式 shell。
+
+## 步骤 5 —— 在浏览器中打开 Jupyter
+
+将你在步骤 3 中复制的 URL 直接粘贴到浏览器地址栏：
+
+```
+http://127.0.0.1:8888/lab?token=abc123def456...
+```
+
+JupyterLab 会在浏览器中打开。Python 内核运行在你的 GPU Cloud 实例上，因此每个 notebook 单元都可以访问完整的 GPU。
+
+## 在 Notebook 中验证 GPU 访问
+
+打开一个新的 notebook 并运行以下单元，确认 GPU 可见：
+
+```python
+import torch
+
+print("CUDA available:", torch.cuda.is_available())
+print("GPU name:      ", torch.cuda.get_device_name(0))
+print("VRAM (GB):     ", torch.cuda.get_device_properties(0).total_memory / 1e9)
+```
+
+在 A100 实例上的预期输出：
+
+```
+CUDA available: True
+GPU name:       NVIDIA A100-SXM4-80GB
+VRAM (GB):      85.899345920
+```
+
+对于 TensorFlow 镜像，使用：
+
+```python
+import tensorflow as tf
+
+gpus = tf.config.list_physical_devices('GPU')
+print("GPUs found:", len(gpus))
+for gpu in gpus:
+    print(" ", gpu)
+```
+
+## 使用 VS Code 代替 JupyterLab
+
+如果你更喜欢 VS Code，**Remote - SSH** 扩展可以直接连接到你的实例并原生支持 Jupyter notebooks——无需端口转发。在本地安装该扩展，按 `Ctrl+Shift+P` → **Remote-SSH: Connect to Host**，然后输入 `ubuntu@<ip-address>`。连接后打开任意 `.ipynb` 文件，VS Code 会提示你从实例的 Python 环境中选择内核。
+
+## 让 Jupyter 在会话之间保持运行
+
+使用 `tmux` 持久运行 Jupyter，这样即使合上笔记本电脑它也会继续运行：
+
+```bash
+# 在实例上：启动一个命名的 tmux 会话
+tmux new -s jupyter
+
+# 在 tmux 内：启动 Jupyter
+jupyter lab --no-browser --port=8888 --ip=127.0.0.1
+
+# 分离（Jupyter 继续运行）：Ctrl-B，然后 D
+
+# 稍后——从任意 SSH 会话重新附加：
+tmux attach -t jupyter
+```
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="Docker 容器" icon="docker" href="/zh/guides/docker-containers">
+    在 notebook 旁运行容器化的 GPU 工作负载。
+  </Card>
+  <Card title="持久存储" icon="hard-drive" href="/zh/guides/persistent-storage">
+    将数据集和检查点存放在比实例更持久的卷上。
+  </Card>
+</CardGroup>

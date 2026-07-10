@@ -1,0 +1,169 @@
+---
+title: "GPU Cloud 上的网络"
+sidebarTitle: "网络"
+description: "了解公网 IP、防火墙规则、私有网络和带宽定价如何共同工作，安全地连接你的 GPU Cloud 实例。"
+---
+
+你在 GPU Cloud 上启动的每台 GPU 实例都会同时连接到公网以及你账户内的一个隔离的私有网络。公网连接让你能够通过 SSH 登录、对外提供 API 端点，以及从互联网拉取软件包。私有网络则让你的实例之间能够以低延迟通信，而不必将流量暴露在公网上。防火墙规则让你能够精细地控制在每个边界允许哪些流量。理解这些构建模块有助于你设计既可达又安全的架构。
+
+## 公网 IP 地址
+
+当实例进入 `running` 状态时，会自动为每台实例分配一个公网 IPv4 地址。此地址是你 SSH 访问、HTTP/HTTPS 服务以及你选择对外暴露的任何其他流量的主要入口。
+
+**动态 IP 与静态 IP：**
+
+- **动态（默认）** —— 每次实例启动时都会分配一个新的 IP。如果你停止再重启实例，IP 可能会改变。动态 IP 不产生额外费用。
+- **静态（预留）** —— 你可以预留一个静态公网 IP 并将其关联到一台实例上。即使实例已停止，该 IP 仍归你所有，确保你的端点地址永不改变。静态 IP 在预留期间按较小的小时费率计费。
+
+<Tabs>
+  <Tab title="CLI">
+    ```bash
+    # Reserve a static IP
+    gpucloud ips reserve --region us-east-1 --name my-static-ip
+
+    # Associate the static IP with an instance
+    gpucloud ips associate eip_r1s2t3u4 --instance inst_a1b2c3d4
+
+    # Disassociate and release when no longer needed
+    gpucloud ips disassociate eip_r1s2t3u4
+    gpucloud ips release eip_r1s2t3u4
+    ```
+  </Tab>
+  <Tab title="API">
+    ```bash
+    # Reserve a static IP
+    curl -X POST https://api.gpucloud.com/v1/ips \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"region": "us-east-1", "name": "my-static-ip"}'
+
+    # Associate with an instance
+    curl -X POST https://api.gpucloud.com/v1/ips/eip_r1s2t3u4/associate \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"instance_id": "inst_a1b2c3d4"}'
+    ```
+  </Tab>
+</Tabs>
+
+## 安全组与防火墙规则
+
+安全组是挂载到实例上的有状态虚拟防火墙。你定义入站和出站规则，指定允许的协议、端口以及源/目标 IP 范围。所有其他流量默认被拒绝。
+
+<Note>
+  每台新实例都会自动被加入到**默认安全组**中，该安全组允许来自任意 IP 地址（`0.0.0.0/0`）在**端口 22** 上的入站 SSH。这让你在启动后可以立即连接。为了更安全的配置，请将 SSH 源范围限制为你自己的 IP 或 CIDR 段。
+</Note>
+
+### 规则结构
+
+每条防火墙规则指定：
+
+| 字段 | 描述 | 示例 |
+|---|---|---|
+| Direction | `inbound` 或 `outbound` | `inbound` |
+| Protocol | `tcp`、`udp` 或 `icmp` | `tcp` |
+| Port / Range | 单个端口或范围 | `8888` 或 `8000–9000` |
+| Source / Destination | CIDR 段或另一个安全组 | `203.0.113.0/24` |
+| Action | 始终为 `allow`（拒绝流量为隐式） | `allow` |
+
+### 常见规则示例
+
+<CodeGroup>
+  ```bash CLI
+  # Allow HTTPS inbound from anywhere
+  gpucloud firewall add-rule \
+    --group sg_v5w6x7y8 \
+    --direction inbound \
+    --protocol tcp \
+    --port 443 \
+    --source 0.0.0.0/0
+
+  # Allow Jupyter (port 8888) from a specific IP only
+  gpucloud firewall add-rule \
+    --group sg_v5w6x7y8 \
+    --direction inbound \
+    --protocol tcp \
+    --port 8888 \
+    --source 203.0.113.42/32
+
+  # Allow all outbound traffic (default)
+  gpucloud firewall add-rule \
+    --group sg_v5w6x7y8 \
+    --direction outbound \
+    --protocol all \
+    --destination 0.0.0.0/0
+  ```
+
+  ```json API
+  // POST https://api.gpucloud.com/v1/security-groups/sg_v5w6x7y8/rules
+  {
+    "direction": "inbound",
+    "protocol": "tcp",
+    "port": 8888,
+    "source": "203.0.113.42/32",
+    "description": "Jupyter from office IP"
+  }
+  ```
+</CodeGroup>
+
+<Warning>
+  避免将敏感端口（如数据库端口 5432、3306、6379）暴露给 `0.0.0.0/0`。请使用私有网络进行实例间通信，并将公网访问限制到应用真正需要对外提供的端口。
+</Warning>
+
+## 私有网络
+
+同一区域和同一账户中的所有实例都会自动加入一个共享的私有网络。私有 IP 地址从 `10.0.0.0/8` 段中分配，并在实例的整个生命周期内保持不变 —— 重启后也不会改变。
+
+**使用私有网络的原因：**
+
+- **无带宽费用** —— 私有网络内实例之间的流量是免费的。
+- **更低延迟** —— 私有流量保持在数据中心内部，避免公网路由路径。
+- **安全** —— 服务（数据库、模型服务器、分布式训练协调器）可以在不对外暴露的情况下相互通信。
+
+你可以从仪表板或通过 API 查询任何实例的私有 IP，并直接在应用配置或训练启动脚本中使用它。
+
+```bash
+# Get private IP of a running instance
+gpucloud instances get inst_a1b2c3d4 --format json | jq '.private_ip'
+
+# Use private IP in a PyTorch distributed launch
+torchrun \
+  --nproc_per_node=8 \
+  --nnodes=2 \
+  --master_addr="10.0.1.15" \
+  --master_port=29500 \
+  train.py
+```
+
+<Tip>
+  运行多节点分布式训练任务时，请始终为 `--master_addr` 参数使用私有 IP 地址。这可以让梯度同步流量远离公网，降低延迟，并避免产生公网出站带宽费用。
+</Tip>
+
+## 带宽与定价
+
+| 流量类型 | 方向 | 费率 |
+|---|---|---|
+| 公网入站（ingress） | 互联网 → 实例 | 免费 |
+| 公网出站（egress） | 实例 → 互联网 | $0.05 / GB（每月前 1 TB），之后 $0.04 / GB |
+| 私有入站 | 实例 → 实例（同区域） | 免费 |
+| 私有出站 | 实例 → 实例（同区域） | 免费 |
+| 跨区域私有 | 实例 → 实例（不同区域） | $0.02 / GB |
+
+**实例带宽上限**因实例类型而异。所有实例至少获得 1 Gbps 公网上行。高性能多 GPU 实例（H100 8×、A100 8×）配备最高 25 Gbps 的公网带宽，以支持大数据集的加载和检查点上传。
+
+<Note>
+  带宽使用会被实时计量并显示在**计费**仪表板上。设置预算提醒，以便在出站费用超过阈值前收到通知 —— 对于从外部来源流式加载大数据集的任务尤其有用。
+</Note>
+
+## 网络摘要
+
+| 特性 | 详情 |
+|---|---|
+| 公网 IPv4 | 启动时自动分配；可预留静态 IP |
+| IPv6 | 即将推出 |
+| 默认开放端口 | 22（SSH） |
+| 防火墙模型 | 有状态安全组，默认拒绝 |
+| 私有网络范围 | `10.0.0.0/8` |
+| 私有流量费用 | 同区域内免费 |
+| 公网出站费用 | $0.05 / GB 起 |
+| 最大实例带宽 | 最高 25 Gbps（多 GPU 实例） |

@@ -1,0 +1,190 @@
+---
+title: "通过 SSH 安全连接到你的 GPU Cloud 实例"
+sidebarTitle: "SSH 访问"
+description: "在 macOS、Linux 或 Windows 上通过 SSH 连接到 GPU Cloud 实例。配置 SSH config 文件并排查常见连接问题。"
+---
+
+SSH 是访问 GPU Cloud 实例的主要方式。当你的实例在控制台显示为 **Running** 状态后，你就可以使用启动时选择的 SSH 密钥从任意终端进行连接。本指南涵盖了在 macOS、Linux 和 Windows 上完成的连接流程、如何用 SSH config 文件简化重复登录，以及如何解决最常见的连接错误。
+
+## 前置条件
+
+在开始连接之前，请确认以下事项：
+
+- 你的实例在 [GPU Cloud 控制台](https://console.gpucloud.com/instances)中状态为 **Running**
+- 你拥有启动时挂载的 SSH 密钥对应的**私钥**文件（`.pem` 或对应的 `.pub`）
+- 你知道实例的**公网 IP 地址**（可在 Instances 列表中查看)
+- 实例防火墙规则中 **22** 端口已开放（所有 GPU Cloud 实例默认开放）
+
+所有 GPU Cloud 实例的默认用户名均为 **`ubuntu`**，无论你选择的是哪个磁盘镜像。
+
+## 连接到你的实例
+
+<Tabs>
+  <Tab title="macOS / Linux">
+    ### 设置密钥文件权限
+
+    SSH 要求你的私钥文件仅对当前用户可读。下载或创建密钥后运行一次：
+
+    ```bash
+    chmod 600 ~/.ssh/your_key
+    ```
+
+    将 `your_key` 替换为你的私钥实际文件名。
+
+    ### 连接
+
+    ```bash
+    ssh -i ~/.ssh/your_key ubuntu@<ip-address>
+    ```
+
+    将 `<ip-address>` 替换为控制台中显示的实例公网 IP。首次连接时，SSH 会显示主机指纹提示——输入 `yes` 将该主机添加到 `known_hosts` 文件中。
+
+    ### 示例
+
+    ```bash
+    ssh -i ~/.ssh/gpucloud-dev ubuntu@203.0.113.42
+    ```
+
+    你会直接进入 `ubuntu` 用户的主目录。如果选择了预构建镜像，你会看到一段欢迎信息，其中列出已安装的框架版本。
+  </Tab>
+  <Tab title="Windows">
+    <Tabs>
+      <Tab title="PowerShell / Windows Terminal">
+        Windows 10 (1809+) 和 Windows 11 内置了 OpenSSH，因此你可以直接从 PowerShell 或 Windows Terminal 连接。
+
+        ### 设置密钥文件权限
+
+        Windows SSH 要求仅当前用户账户可以访问密钥文件。在 PowerShell 中：
+
+        ```powershell
+        icacls $env:USERPROFILE\.ssh\your_key /inheritance:r /grant:r "$($env:USERNAME):R"
+        ```
+
+        ### 连接
+
+        ```powershell
+        ssh -i $env:USERPROFILE\.ssh\your_key ubuntu@<ip-address>
+        ```
+
+        将 `your_key` 和 `<ip-address>` 替换为你的实际值。
+      </Tab>
+      <Tab title="PuTTY">
+        PuTTY 使用自有的 `.ppk` 密钥格式。如果你的密钥是 OpenSSH 格式（`.pem`），需先用 **PuTTYgen** 进行转换。
+
+        ### 使用 PuTTYgen 转换密钥
+
+        <Steps>
+          <Step title="打开 PuTTYgen">
+            启动 **PuTTYgen**（与 PuTTY 一同安装）。点击 **Load**，将文件过滤器设置为 *All Files*，然后选择你的 `.pem` 私钥。
+          </Step>
+          <Step title="另存为 .ppk">
+            点击 **Save private key**。当提示是否设置密码时，点击 **Yes** 以不设置密码保存（或添加密码以增强安全性）。将 `.ppk` 文件保存到 `C:\Users\YourName\.ssh\`。
+          </Step>
+        </Steps>
+
+        ### 使用 PuTTY 连接
+
+        <Steps>
+          <Step title="填写主机信息">
+            打开 **PuTTY**。在 **Host Name** 中输入 `ubuntu@<ip-address>`。将 **Port** 设为 `22`，**Connection type** 设为 `SSH`。
+          </Step>
+          <Step title="加载你的密钥">
+            在左侧面板依次进入 **Connection → SSH → Auth → Credentials**。在 **Private key file for authentication** 下点击 **Browse** 并选择你的 `.ppk` 文件。
+          </Step>
+          <Step title="保存并打开">
+            回到 **Session** 页面，在 **Saved Sessions** 中输入名称并点击 **Save** 以便日后复用。点击 **Open** 连接。
+          </Step>
+        </Steps>
+      </Tab>
+    </Tabs>
+  </Tab>
+</Tabs>
+
+## 使用 SSH config 文件简化登录
+
+如果你要连接多个实例，SSH config 文件可以让你用简短的别名替代冗长的 `ssh -i ...` 命令。
+
+将以下内容添加到 `~/.ssh/config`（若文件不存在则新建）：
+
+```text
+Host gpucloud-dev
+    HostName 203.0.113.42
+    User ubuntu
+    IdentityFile ~/.ssh/gpucloud-dev
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+```
+
+保存后，只需运行：
+
+```bash
+ssh gpucloud-dev
+```
+
+`ServerAliveInterval` 和 `ServerAliveCountMax` 会每 60 秒发送一次保活包，避免长时间训练期间被网络中间设备断开空闲的 SSH 会话。
+
+## 使用 Web 终端（无需 SSH 客户端）
+
+如果你无法使用 SSH——例如在受限的公司网络中——GPU Cloud 为每个运行中的实例提供了基于浏览器的终端。
+
+1. 打开[控制台](https://console.gpucloud.com/instances)并点击实例名称。
+2. 在实例详情视图中点击 **Terminal** 标签页。
+3. 一个完整的 xterm.js 会话会在浏览器中打开，并以 `ubuntu` 用户身份登录。
+
+<Note>
+  Web 终端适合进行快速检查和编辑，但不支持文件上传、SSH 隧道或 X11 转发。若需持久性工作流（例如 Jupyter 端口转发），请使用本地 SSH 客户端。
+</Note>
+
+## 故障排查
+
+### `Permission denied (publickey)`
+
+这是最常见的 SSH 错误。请按顺序排查：
+
+1. **密钥文件不对** ——请确认你使用的私钥与该实例挂载的公钥相对应。在控制台的实例详情下 **SSH Keys** 中确认。
+2. **密钥权限过宽** ——在 macOS/Linux 上运行 `chmod 600 ~/.ssh/your_key`。在 Windows 上重新运行上面的 `icacls` 命令。
+3. **用户名错误** ——始终使用 `ubuntu`，而不是 `root` 或你的本地用户名。
+4. **密钥尚未注入** ——在实例达到 **Running** 后再等待几秒；密钥注入发生在首次启动过程中，可能在状态更新后需要 10–20 秒。
+
+### `Connection timed out` 或 `Connection refused`
+
+| 现象 | 可能原因 | 解决方案 |
+|---------|-------------|-----|
+| 立即超时 | 防火墙阻止 22 端口 | 检查控制台中实例的 **Firewall** 标签页；确保存在允许来自你 IP 的 TCP 22 入站规则 |
+| 约 30 秒后超时 | 实例尚未运行 | 确认实例状态为 **Running**，而不是 **Provisioning** 或 **Stopped** |
+| Connection refused | SSH 守护进程未启动 | 使用 Web 终端运行 `sudo systemctl status ssh` 检查 |
+
+### `Host key verification failed`
+
+当某个实例终止后，新实例被分配到同一 IP 时会出现这种情况。清除旧条目：
+
+```bash
+ssh-keygen -R <ip-address>
+```
+
+然后重新连接并接受新的主机指纹。
+
+### 连接缓慢或断开
+
+在 SSH config 中添加保活设置（参见上面的示例）。对于运行时间非常长的任务，建议在会话中使用 **tmux** 或 **screen**，即使断开也能保留你的工作：
+
+```bash
+tmux new -s training
+```
+
+随时使用以下命令重新连接会话：
+
+```bash
+tmux attach -t training
+```
+
+## 下一步
+
+<CardGroup cols={2}>
+  <Card title="Jupyter Notebooks" icon="book-open" href="/zh/guides/jupyter-notebooks">
+    通过 SSH 转发 Jupyter，在浏览器中进行交互式开发。
+  </Card>
+  <Card title="持久存储" icon="hard-drive" href="/zh/guides/persistent-storage">
+    挂载卷以在实例重启后仍保留数据。
+  </Card>
+</CardGroup>

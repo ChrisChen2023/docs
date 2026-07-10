@@ -1,0 +1,127 @@
+---
+title: "了解 GPU Cloud 实例"
+sidebarTitle: "实例"
+description: "了解什么是 GPU 实例、它在生命周期中如何流转，以及定义 GPU Cloud 上每个实例的关键属性。"
+---
+
+GPU 实例是一台由专用 GPU 硬件支撑的虚拟机，你可以通过 GPU Cloud 按需配置。每个实例将特定的 GPU 型号、vCPU 分配、系统内存和本地 NVMe 存储组合成一个可以在几秒钟内启动的计算单元。无论你是在训练大型语言模型、运行批量推理，还是探索新框架，实例都会为你提供隔离、可复现的 GPU 环境以及完全的 root 访问权限 —— 无需承担管理物理硬件的开销。
+
+## 实例生命周期
+
+GPU Cloud 上的每个实例从被请求到被移除的过程都会经过一组定义清晰的状态。理解这些状态有助于你编写可靠的自动化脚本、准确解释账单，并避免意外的数据丢失。
+
+<Steps>
+  <Step title="Pending">
+    你的实例请求已被接受，GPU Cloud 正在分配硬件、加载你选择的磁盘镜像并注入你的 SSH 密钥。此阶段不会产生费用。
+  </Step>
+  <Step title="Running">
+    实例已上线并可完全访问。vCPU、GPU、内存和存储全部处于活动状态。计费从实例进入此状态的那一刻开始。
+  </Step>
+  <Step title="Stopped">
+    实例操作系统已关机，但底层硬件分配得以保留。你的临时磁盘保持完好。计费以较低的费率继续，因为 GPU 预留仍为你保留着。
+  </Step>
+  <Step title="Terminated">
+    实例已被永久销毁。所有临时（实例）存储都被删除，硬件被释放回资源池。此操作不可逆 —— 如果你需要保留数据，请在终止前挂载持久化卷。
+  </Step>
+</Steps>
+
+<Warning>
+  终止实例会永久删除其本地 NVMe 磁盘上存储的所有数据。在终止之前，请对你想保留的任何工作进行快照或迁移。
+</Warning>
+
+## 实例状态参考
+
+下表总结了你在仪表板、API 或 CLI 中可能遇到的每个状态。
+
+| 状态 | 描述 | 是否计费 | 是否可通过 SSH 访问 |
+|---|---|---|---|
+| `pending` | 实例正在配置中 | 否 | 否 |
+| `running` | 实例完全运行 | 是 —— 全额费率 | 是 |
+| `stopping` | 操作系统关机中 | 是 —— 全额费率 | 否 |
+| `stopped` | 实例已停止；硬件保留 | 是 —— 降低费率 | 否 |
+| `starting` | 实例正从 stopped 恢复 | 是 —— 全额费率 | 否 |
+| `terminating` | 实例正在被销毁 | 否 | 否 |
+| `terminated` | 实例已被永久移除 | 否 | 否 |
+| `error` | 配置或运行时发生故障 | 否 | 否 |
+
+## 关键实例属性
+
+每个实例都有一组不可变和可变的属性，你可以随时通过仪表板或 API 查看。
+
+<CardGroup cols={2}>
+  <Card title="实例 ID" icon="fingerprint">
+    在创建时分配的唯一标识符（例如 `inst_a1b2c3d4`）。在 API 调用和 CLI 命令中使用它来定位特定实例。
+  </Card>
+  <Card title="GPU 类型" icon="microchip">
+    挂载到实例的 GPU 型号（例如 `NVIDIA H100 80GB SXM5`）。在启动时设定，除非重新配置否则无法更改。
+  </Card>
+  <Card title="区域" icon="globe">
+    你实例所在数据中心的位置（例如 `us-east-1`）。选择靠近你数据的区域可减少传输延迟和成本。
+  </Card>
+  <Card title="IP 地址" icon="network-wired">
+    实例启动时自动分配的公网 IPv4 地址。你也可以选择预留静态 IP，以便在重启时保持相同的地址。
+  </Card>
+  <Card title="状态" icon="circle-info">
+    实例当前的生命周期状态。轮询此字段可以构建启动等待自动化或监控长时间运行的任务。
+  </Card>
+  <Card title="磁盘镜像" icon="hard-drive">
+    基础操作系统和预安装的软件栈（例如 `pytorch-2.3-cuda12`）。在启动时选择并烧录到启动卷中。
+  </Card>
+  <Card title="SSH 密钥" icon="key">
+    在配置时注入到实例中的公钥。你必须持有对应的私钥才能连接。
+  </Card>
+  <Card title="实例类型" icon="server">
+    决定分配给你的实例的 GPU 数量、vCPU 和 RAM 的硬件配置（例如 `gpu.h100.1x`）。
+  </Card>
+</CardGroup>
+
+## 与实例交互
+
+你可以通过三种能力相当的接口来管理实例 —— 选择最适合你工作流程的方式。
+
+<Tabs>
+  <Tab title="仪表板">
+    从左侧边栏进入 **Instances**，然后点击 **Launch Instance** 打开配置向导。你可以在实例详情页启动、停止和终止实例。
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    # Launch a new instance
+    gpucloud instances launch \
+      --gpu h100-80gb-sxm5 \
+      --image pytorch-2.3-cuda12 \
+      --region us-east-1 \
+      --ssh-key my-key
+
+    # List running instances
+    gpucloud instances list --status running
+
+    # Stop an instance
+    gpucloud instances stop inst_a1b2c3d4
+
+    # Terminate an instance
+    gpucloud instances terminate inst_a1b2c3d4
+    ```
+  </Tab>
+  <Tab title="API">
+    ```bash
+    # Launch a new instance
+    curl -X POST https://api.gpucloud.com/v1/instances \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "gpu_type": "h100-80gb-sxm5",
+        "image": "pytorch-2.3-cuda12",
+        "region": "us-east-1",
+        "ssh_key_name": "my-key"
+      }'
+
+    # Get instance details
+    curl https://api.gpucloud.com/v1/instances/inst_a1b2c3d4 \
+      -H "Authorization: Bearer $GPUCLOUD_API_KEY"
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  在 CLI 中使用 `--wait` 参数（`gpucloud instances launch --wait`）可以阻塞直到实例达到 `running` 状态 —— 非常适合需要在启动后立即通过 SSH 连接的脚本化流水线。
+</Tip>

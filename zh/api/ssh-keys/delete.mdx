@@ -1,0 +1,42 @@
+---
+title: "从 GPU Cloud 账户删除已注册的 SSH 密钥"
+sidebarTitle: "删除 SSH 密钥"
+description: "从你的 GPU Cloud 账户中永久移除一个已注册的 SSH 密钥，以防止在启动新实例时被选中。"
+---
+
+当某个 SSH 密钥不再需要时——例如团队成员离开或某台机器已停用——你可以使用此端点将其从账户中移除。删除密钥会将其从 GPU Cloud 注销，确保它无法再附加到任何新的实例。此操作是永久性的，无法撤销，因此在继续之前请确认你确实不再需要该密钥。
+
+<Warning>
+  删除密钥只会阻止它被用于**新的**实例。SSH 密钥会在实例启动时写入实例的 `authorized_keys` 文件，因此已使用该密钥启动的现有实例仍会接受对应私钥的连接。如果你需要撤销对运行中实例的访问权限，必须手动从该实例的 `~/.ssh/authorized_keys` 中移除相应的密钥。
+</Warning>
+
+## 端点
+
+```
+DELETE https://api.gpucloud.com/v1/ssh-keys/{id}
+```
+
+## 路径参数
+
+<ParamField path="id" type="string" required>
+  你想删除的 SSH 密钥的唯一标识符（例如 `key_xyz789`）。你可以通过 [列出 SSH 密钥](/zh/api/ssh-keys/list) 端点检索密钥 ID。
+</ParamField>
+
+## 响应
+
+删除成功时返回 `204 No Content`，响应体为空。
+
+如果密钥 ID 不存在或不属于你的账户，API 将返回 `404 Not Found`。请使用 [列出 SSH 密钥](/zh/api/ssh-keys/list) 端点验证密钥 ID，并确认你使用了正确的 API 密钥进行认证。
+
+## 请求示例
+
+```bash
+curl -X DELETE https://api.gpucloud.com/v1/ssh-keys/key_xyz789 \
+  -H "Authorization: Bearer <api-key>"
+```
+
+## 响应示例
+
+```
+HTTP/1.1 204 No Content
+```

@@ -1,0 +1,55 @@
+---
+title: "列出 GPU Cloud 账户中已注册的所有 SSH 密钥"
+sidebarTitle: "列出 SSH 密钥"
+description: "获取与你的 GPU Cloud 账户关联的所有 SSH 密钥列表，包括它们的 ID、名称、指纹和创建时间戳。"
+---
+
+SSH 密钥是你通过 SSH 认证进入 GPU Cloud 实例的主要方式。此端点会返回你已注册的每一个密钥，让你能够全面了解在启动新实例时可供附加的密钥。响应中的每一条记录都包含该密钥的唯一 ID、可读的名称和指纹——这些信息对于审计访问权限或标识需要移除的密钥非常有用。
+
+## 端点
+
+```
+GET https://api.gpucloud.com/v1/ssh-keys
+```
+
+## 请求
+
+此端点不接受请求体或查询参数。只需在 `Authorization` 请求头中包含你的 API 密钥即可。
+
+## 响应字段
+
+<ResponseField name="id" type="string">
+  SSH 密钥的唯一标识符（例如 `key_xyz789`）。
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  你为此密钥指定的可读标签。
+</ResponseField>
+
+<ResponseField name="fingerprint" type="string">
+  公钥的 SHA-256 指纹，用于验证密钥身份。
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 时间戳，表示该密钥被添加到你账户的时间。
+</ResponseField>
+
+## 请求示例
+
+```bash
+curl https://api.gpucloud.com/v1/ssh-keys \
+  -H "Authorization: Bearer <api-key>"
+```
+
+## 响应示例
+
+```json
+[
+  {
+    "id": "key_xyz789",
+    "name": "my-macbook",
+    "fingerprint": "SHA256:abc123...",
+    "created_at": "2024-01-10T08:00:00Z"
+  }
+]
+```

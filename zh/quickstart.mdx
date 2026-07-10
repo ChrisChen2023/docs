@@ -1,0 +1,96 @@
+---
+title: "快速入门：几分钟内运行你的第一个 GPU 工作负载"
+sidebarTitle: "快速入门"
+description: "在五分钟内启动一台 GPU 实例。创建账户、添加 SSH 密钥、启动实例并运行你的第一个工作负载。"
+---
+
+本指南将引导你完成从注册 GPU Cloud 账户到运行第一个 PyTorch 工作负载的所有步骤 —— 全程五分钟以内。你将创建账户、注册 SSH 密钥、选择 GPU 与磁盘镜像，并通过 SSH 连接到实例。完成后，你将拥有一个可用于 AI、ML 或任何 GPU 加速任务的工作环境。
+
+<Steps>
+  <Step title="创建账户">
+    访问 [console.gpucloud.com](https://console.gpucloud.com) 并点击 **Sign Up**。输入你的邮箱地址并设置一个强密码，然后查收验证邮件并点击确认链接以激活账户。
+
+    验证完成后，登录 GPU Cloud 控制台即可访问你的仪表板。
+  </Step>
+
+  <Step title="添加 SSH 密钥">
+    在启动实例前，请先注册你的 SSH 公钥，以便无需密码即可完成认证。
+
+    1. 在控制台中，从左侧边栏打开 **SSH Keys** 页面。
+    2. 点击 **Add SSH Key**。
+    3. 将你的公钥文件内容（通常是 `~/.ssh/id_ed25519.pub` 或 `~/.ssh/id_rsa.pub`）粘贴到 **Public Key** 字段中。
+    4. 为密钥取一个易于识别的名称，然后点击 **Save**。
+
+    如果你还没有 SSH 密钥对，请先在本地生成：
+
+    ```bash
+    ssh-keygen -t ed25519 -C "your@email.com"
+    ```
+  </Step>
+
+  <Step title="启动 GPU 实例">
+    在控制台仪表板中，点击 **New Instance** 打开实例启动向导。
+
+    1. **GPU Type** —— 从可用选项中选择一款 GPU（例如，`RTX 4090` 用于成本高效的推理，或 `A100 80GB` 用于大模型训练）。
+    2. **Region** —— 选择离你或你的数据源最近的地理区域。
+    3. **Disk Image** —— 选择预构建的镜像，如 **PyTorch 2.x (CUDA 12)**，以获得开箱即用的完整环境。
+    4. **SSH Key** —— 选择你在上一步中注册的密钥。
+    5. 点击 **Launch Instance** 以配置你的机器。
+
+    实例将在约 60 秒内从 **Provisioning** 状态转换为 **Running** 状态。
+
+    <Tip>
+      选择 **PyTorch** 或 **TensorFlow** 磁盘镜像可以跳过手动安装 CUDA 与框架的步骤 —— 一切都已预装并经过验证。
+    </Tip>
+  </Step>
+
+  <Step title="通过 SSH 连接">
+    当实例状态显示为 **Running** 时，在实例详情页面查找其公网 IP 地址，并在本地机器上打开一个终端。
+
+    ```bash
+    ssh ubuntu@<ip-address>
+    ```
+
+    将 `<ip-address>` 替换为控制台中显示的 IP。首次连接时接受主机指纹提示。此时你已进入你的 GPU 实例。
+
+    验证 GPU 是否可见：
+
+    ```bash
+    nvidia-smi
+    ```
+
+    你应该会看到一张列出 GPU 型号、驱动版本和显存使用情况的表格。
+  </Step>
+
+  <Step title="运行你的第一个工作负载">
+    由于磁盘镜像已预装 PyTorch，你可以立即验证 GPU 访问并运行一个简单的张量运算：
+
+    ```python
+    import torch
+
+    # Confirm GPU availability
+    print("CUDA available:", torch.cuda.is_available())
+    print("GPU:", torch.cuda.get_device_name(0))
+
+    # Run a matrix multiplication on the GPU
+    a = torch.randn(4096, 4096, device="cuda")
+    b = torch.randn(4096, 4096, device="cuda")
+    c = torch.matmul(a, b)
+
+    print("Result shape:", c.shape)
+    print("Device:", c.device)
+    ```
+
+    将其保存为 `verify_gpu.py` 并运行：
+
+    ```bash
+    python verify_gpu.py
+    ```
+
+    你应该会看到 `CUDA available: True` 以及你的 GPU 名称和输出张量的详细信息。你的实例现已准备好运行生产工作负载。
+  </Step>
+</Steps>
+
+<Note>
+  本指南介绍了启动实例最快的路径。如需更深入的操作说明 —— 包括存储配置、网络选项、自定义磁盘镜像和成本管理 —— 请参阅[启动实例](/zh/guides/launch-instance)指南。
+</Note>
