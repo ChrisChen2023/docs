@@ -4,7 +4,7 @@ sidebarTitle: "Create Instance"
 description: "Provision a new GPU instance by specifying your desired GPU type, region, disk image, and SSH key. The instance starts booting immediately after creation."
 ---
 
-Creating an instance provisions a dedicated GPU server in the region of your choice and begins the boot sequence immediately. You must supply a GPU type, region, base disk image, and the ID of an SSH key already registered in your account. Once the instance transitions from `pending` to `running` — typically within a few minutes — you can connect over SSH using the `ip_address` returned in the response.
+Creating an instance provisions a dedicated GPU server in the region of your choice and begins the boot sequence immediately. 
 
 ## Endpoint
 
@@ -43,6 +43,8 @@ POST https://api.gpucloud.com/v1/instances
 </ParamField>
 
 ## Response Fields
+
+Let's see what the response looks like when you successfully create a new instance.
 
 A successful request returns `201 Created` with the full instance object in the response body.
 
